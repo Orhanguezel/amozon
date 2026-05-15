@@ -1,0 +1,44 @@
+{
+  "title": "Amozon",
+  "slug": "amozon",
+  "summary": "Amazon ürün scraping, Keepa zenginleştirme ve kategori bazlı risk scoring motoru.",
+  "description": "Oxylabs ile Amazon arama sonuçlarından ürün, fiyat, satıcı ve yorum sinyalleri toplayan; veriyi MySQL'e yazıp beş boyutlu kategori risk raporu üreten bağımsız TypeScript/Bun projesi.",
+  "category": "DATA SCRAPING",
+  "services": [
+    "Backend Development",
+    "Data Scraping",
+    "Scoring Engine",
+    "Automation"
+  ],
+  "techs": [
+    "TypeScript",
+    "Bun",
+    "MySQL",
+    "Drizzle ORM",
+    "Oxylabs",
+    "Keepa"
+  ],
+  "features": [
+    "Amazon ürün scraping",
+    "ASIN bazlı tekilleştirme",
+    "Kategori istatistikleri",
+    "Beş boyutlu risk scoring",
+    "Opsiyonel Keepa queue ve snapshot akışı",
+    "Job tabanlı CLI runner",
+    "Mock DB ile scoring ve job testleri"
+  ],
+  "featured": false,
+  "displayOrder": 99,
+  "clientName": "Amozon",
+  "status": "active",
+  "startDate": "2026-05-07",
+  "completeDate": null,
+  "completionTimeLabel": "Aktif geliştirme",
+  "repoUrl": null,
+  "websiteUrl": null,
+  "featuredImage": null,
+  "featuredImageAlt": "Amozon Amazon scraping ve scoring engine",
+  "resumeTitle": "Amozon",
+  "resumeSubtitle": "DATA SCRAPING",
+  "excludeFromPortfolio": false
+}

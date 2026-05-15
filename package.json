@@ -1,0 +1,21 @@
+{
+  "name": "amozon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install:all": "bun install --cwd backend && bun install --cwd admin_panel",
+    "build": "bun run backend:build && bun run admin:build",
+    "test": "bun run backend:test",
+    "scan": "bun run --cwd backend scan",
+    "db:schema": "bun run --cwd backend db:schema",
+    "backend:build": "bun run --cwd backend build",
+    "backend:test": "bun run --cwd backend test",
+    "backend:dev": "bun run --cwd backend dev",
+    "backend:start": "bun run --cwd backend start",
+    "admin:dev": "bun run --cwd admin_panel dev",
+    "admin:build": "bun run --cwd admin_panel build",
+    "admin:test": "bun run --cwd admin_panel test",
+    "admin:start": "bun run --cwd admin_panel start"
+  }
+}
