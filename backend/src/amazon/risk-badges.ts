@@ -1,4 +1,4 @@
-import type { Confidence, DataQuality, DimensionScore, RiskBadge } from './amazon.types';
+import type { Confidence, DimensionScore, RiskBadge } from './amazon.types';
 import { CATEGORY_RISK_CONFIG, MIXED_SIGNAL_CONFIG } from './scoring.config';
 
 /**
@@ -26,7 +26,7 @@ type ScoreLike = Pick<DimensionScore, 'score'> & { confidence?: Confidence } & R
 
 export function deriveRiskBadges(
   scores: Record<'category_risk' | 'sku_chaos' | 'price_war_risk' | 'brand_reliability' | 'operational_risk', ScoreLike>,
-  dataQuality: Pick<DataQuality, 'keepa_coverage' | 'seller_coverage'>,
+  dataQuality: Record<string, unknown>,
   stats?: { dominantBrandRatio?: number; sellerCount?: number },
 ): RiskBadge[] {
   const sellerCoverage = Number(dataQuality.seller_coverage ?? 0);
