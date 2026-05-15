@@ -364,7 +364,7 @@ function SellerEnrichmentPanel({
 }
 
 
-function DecisionSurfacePanel({
+export function DecisionSurfacePanel({
   detail,
   thesisLoading,
   onActivateThesis,

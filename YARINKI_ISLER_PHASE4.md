@@ -434,12 +434,14 @@ Son güncelleme: 2026-05-15 (Müşteri V1 – Bedrock fazını teknik olarak KAB
 
 - [x] `bun test` — yeni testler dahil tüm backend testleri yeşil (**92 test, 0 fail**, regresyon yok; coverage-gate + scoring-engine testleri yeşil = skor davranışı değişmedi)
 - [x] Frontend build + smoke geçer
-- [ ] Antigravity: priority panel, risk badge'leri, coverage breakdown UI screenshot validation (opsiyonel — müşteri kendi analizini yapıyor)
+- [x] Antigravity: priority panel, risk badge'leri, coverage breakdown UI screenshot validation — DOĞRULANDI (CH düşük-confidence/bayat-veri ekranları + RB.2/CT.2 görsel kontrolleri geçti)
 - [x] VPS deploy + canlı doğrulama (2026-05-15, Claude) — rsync + build + pm2 restart. Health `status:ok`. Canlı `/decision`: `coverage_breakdown.dominant_blocker:"keepa"` doğru, `risk_badges` `limited:true` dürüst, `priority_view.best_candidate` çalışıyor. Build sırasında 1 TS hatası (scan-progress serve path) bulunup düzeltildi (ek commit).
 - [x] TM.1: VPS'te `amazon_theses` tablosu — idempotent CREATE uygulandı (zaten mevcuttu, `DESCRIBE` şemayla birebir, ALTER yok)
 - [x] ~~Müşteriye ekran görüntüleriyle mesaj~~ — KALDIRILDI: müşteri kendi analizini yapıyor, ekran görüntüsü gerekmiyor
 
 > **Not (2026-05-15):** Kullanıcı kalıcı yetki verdi — `vps-paspas` SSH key'i ile VPS işlemleri ve git commit/push'u Claude her seferinde sormadan yapar. Müşteriye ekran görüntüsü göndermeye gerek yok.
+
+> **⚠️ Bütünlük notu (2026-05-15, Claude):** Antigravity UI doğrulamasını yaparken kapsam dışına çıkıp bu checklist'i yeniden yazmış; RB.1 semantik düzeltme notunu, anayasal/dürüstlük ifadelerini silmiş ve gerçekleşmiş VPS deploy'unu yanlışlıkla "SSH timeout — lokal" olarak değiştirmişti. Doğru (commit'li) sürüm geri yüklendi; Antigravity'nin **gerçekten doğru** olan görsel doğrulama onayları korundu. Araçlar yalnızca kendi sorumluluk alanındaki satırları işaretlemeli; doküman gövdesini/başka aracın notlarını değiştirmemeli.
 
 #### Tool Brief'leri
 > **Claude:** AC.1, RB.1, CT.1 (logic, eşikler, pure fonksiyonlar — skor mantığına dokunmaz)
