@@ -327,6 +327,132 @@ Phase 4 tamamlandığında:
 
 ---
 
+## Phase 4.5 — Operator Clarity Hardening (Müşteri Kabul Sonrası)
+
+Son güncelleme: 2026-05-15 (Müşteri V1 – Bedrock fazını teknik olarak KABUL etti. Aşağıdaki 3 başlık "yeni feature değil", mevcut V1 scoring davranışının okunabilir hale gelmesi = hardening/polish. Skorlama mantığına DOKUNULMAZ — sadece görünürlük katmanı. **Claude review tamamlandı: RB.1'de iki semantik terslik bulunup düzeltildi (aşağıda), 92/92 test yeşil.**)
+
+> **Anayasal kural:** Bu paket V1 karakterini bozmaz. Hiçbir badge/sıralama yeni çıkarım üretmez; yalnızca mevcut reasoning + scoring çıktısını etiketler/sıralar. Düşük güven, INSUFFICIENT_DATA, coverage gate davranışı aynen korunur. Her madde sonunda mevcut test paketi (`bun test`) yeşil kalmalı — regresyon yok.
+
+### Genel Durum
+
+| Eksen | Durum |
+|-------|-------|
+| **AC — Actionable SKU Clarity** | ✅ Local tamamlandı |
+| **RB — Dominance / Risk Badge'leri** | ✅ Local tamamlandı |
+| **CT — Coverage Transparency** | ✅ Local tamamlandı |
+| **Test + müşteri doğrulama** | ⏳ VPS + Antigravity + müşteri ekranı bekliyor |
+
+---
+
+### AC — Actionable SKU Clarity
+
+**Müşteri talebi:** Sistem riskleri iyi filtreliyor ama operatör tarafında "öncelikli değerlendirilecek SKU" netliği zayıf. highest confidence / lowest chaos / best candidate görünürlüğü.
+
+#### AC.1 — Ranking Hesaplama (skor mantığına dokunmadan) [🧠 Claude]
+- [x] Mevcut scan sonucundan türetilmiş bir `priority_view` hesapla (yeni skor DEĞİL — sadece mevcut alanların sıralaması):
+  - [x] `highest_confidence`: confidence === HIGH ve composite_score'a göre sıralı ilk N SKU
+  - [x] `lowest_chaos`: en düşük seller chaos / price war sinyali
+  - [x] `best_candidate`: confidence HIGH + decision AL/TAKIP_ET + düşük chaos kesişimi
+- [x] INSUFFICIENT_DATA / LOW confidence SKU'lar best_candidate'a GİREMEZ (V1 dürüstlük kuralı)
+- [x] Pure fonksiyon — izole test edilebilir
+
+**Dosya:** backend/src/amazon/ (yeni `priority-view.ts` veya scoring-engine yardımcı), amazon.types.ts
+**Kabul:** Düşük coverage'lı scan'de best_candidate boş döner veya "yeterli güvenli aday yok" sinyali verir.
+
+#### AC.2 — Priority Panel UI [💻 Codex, polish ✏️ Cursor]
+- [x] Scan summary / DecisionSurface üstüne küçük "Öncelik Görünümü" bölümü: 3 mini liste (En Yüksek Güven / En Düşük Kaos / En İyi Aday)
+- [x] Her satır tıklanınca ilgili SKU detayına gider
+- [x] Boş durumda "Bu taramada öne çıkan güvenli aday yok" mesajı (V1 dürüstlük tonu)
+
+**Dosya:** ProductsPanel.tsx / ScanJourneyPanel.tsx, globals.css
+**Kabul:** Operatör scan sonrası en fazla 1 bakışta önceliklendirilecek SKU'yu görür.
+
+#### AC.3 — Unit Test [💻 Codex]
+- [x] `priority-view.test.ts`: HIGH confidence sıralaması, LOW/INSUFFICIENT dışlama, boş best_candidate senaryosu
+
+---
+
+### RB — Dominance / Risk Badge'leri
+
+**Müşteri talebi:** Amazon dominance, MAP rigidity, yüksek seller chaos reasoning içinde geçiyor ama panelde hızlı okunabilir badge yok.
+
+#### RB.1 — Badge Türetme Logic [🧠 Claude]
+- [x] Mevcut sinyallerden badge türet (eşikler reasoning ile tutarlı, yeni metrik yok):
+  - [x] `AMAZON DOMINANT` — Amazon BuyBox/seller dominance sinyali eşik üstü
+  - [x] `HIGH SELLER CHAOS` — seller chaos / fiyat dağılımı eşik üstü
+  - [x] `HIGH MAP CONTROL` — MAP rigidity / fiyat sabitliği eşik üstü
+- [x] Eşikler tek yerde sabit (config) — keyfi değil, mevcut scoring eşikleriyle hizalı
+- [x] Coverage düşükse badge "(sınırlı veri)" eki ile gösterilir veya hiç gösterilmez — uydurma yok
+
+**Dosya:** backend/src/amazon/ (badge türetme), amazon.types.ts
+**Kabul:** Badge'ler yalnızca veri yeterliyken ve reasoning'de zaten geçen durumlarda çıkar.
+
+> **🧠 Claude review notu (2026-05-15) — RB.1 semantik düzeltmesi:**
+> Codex scaffold'unda iki terslik bulundu ve düzeltildi (V1 dürüstlük kuralı: ters rozet "yeni yorum üretmemekten" de kötüdür, operatörü yanıltır):
+> 1. `AMAZON_DOMINANT` ← `brand_reliability >= 7` idi. Yüksek brand_reliability = marka *parçalanması/zayıf listing* (dominance'ın TERSİ). → `dominantBrandRatio > HIGH_BRAND_RATIO (0.4)` veya stats yoksa `category_risk >= 7` olarak düzeltildi.
+> 2. `HIGH_MAP_CONTROL` ← `price_war_risk >= 7` idi. Yüksek price war = fiyat *düşüşü/oynaklığı* (MAP kontrolünün TERSİ). → `price_war_risk <= LOW_SCORE_MAX (3)` + marka disiplini olarak düzeltildi.
+> `HIGH_SELLER_CHAOS` (sku_chaos) doğruydu; satıcı yoğunluğu OR'u eklendi. Eşikler `MIXED_SIGNAL_CONFIG` + `CATEGORY_RISK_CONFIG`'ten (yeni sayı yok). INSUFFICIENT_DATA boyutta rozet üretilmez; LOW boyutta `limited`. `risk-badges.test.ts` doğru semantiğe göre yeniden yazıldı + 3 inversion-regression testi eklendi. **scoring-engine çağrısına `stats` geçirildi (1 satır, additive — skor mantığı değişmedi).**
+
+#### RB.2 — Badge UI [💻 Codex, polish ✏️ Cursor, validate 👁 Antigravity]
+- [x] DecisionSurfacePanel / ProductsPanel SKU kartlarında renk kodlu badge satırı (kırmızı=Amazon dominant, turuncu=seller chaos, mavi=MAP control)
+- [x] Hover/tooltip: badge'in hangi sinyalden geldiği kısa açıklama
+- [x] CSS: `.badge.dominance`, `.badge.chaos`, `.badge.map`
+
+**Dosya:** analytics.tsx / ProductsPanel.tsx, globals.css
+**Kabul:** Operatör panelde dominance/chaos/MAP durumunu metni okumadan görür.
+
+#### RB.3 — Unit Test [💻 Codex]
+- [x] `risk-badges.test.ts`: eşik altı → badge yok, eşik üstü → doğru badge, düşük coverage → suppressed/sınırlı
+
+---
+
+### CT — Coverage Transparency
+
+**Müşteri talebi:** Confidence doğru çalışıyor ama coverage düşüklüğü hangi katmandan (Keepa / seller / stale) geliyor görünür olsun.
+
+#### CT.1 — Coverage Breakdown Verisi [🧠 Claude]
+- [x] `data_quality` JSON'a `coverage_breakdown` ekle: `{ keepa_coverage, seller_coverage, stale_ratio, dominant_blocker: 'keepa'|'seller'|'stale'|'none' }`
+- [x] `dominant_blocker` = en düşük katman / en büyük eksik (mevcut coverage gate mantığıyla tutarlı, yeni karar üretmez)
+- [x] Mevcut confidence/coverage gate davranışı DEĞİŞMEZ — sadece açıklayıcı alan eklenir
+
+**Dosya:** server.ts (listScans/getScanProgress), amazon.scoring-engine.ts, amazon.types.ts
+**Kabul:** Sıfır seller coverage'lı scan'de `dominant_blocker: 'seller'` döner.
+
+#### CT.2 — Coverage Transparency UI [💻 Codex, polish ✏️ Cursor, validate 👁 Antigravity]
+- [x] Mevcut "ÖN DEĞERLENDİRME — coverage düşük" banner'ına neden satırı: "Düşük coverage kaynağı: Seller verisi (%X) / Keepa (%Y) / Bayat veri (%Z)"
+- [x] DecisionSurface'de küçük coverage breakdown mini-bar (3 katman)
+
+**Dosya:** ProductsPanel.tsx / analytics.tsx, globals.css
+**Kabul:** Operatör düşük confidence gördüğünde "neden"i tek bakışta anlar.
+
+#### CT.3 — Unit Test [💻 Codex]
+- [x] `coverage-breakdown.test.ts`: seller=0 → dominant_blocker seller, stale yüksek → stale, hepsi iyi → none
+
+---
+
+### Test + Müşteri Doğrulama
+
+- [x] `bun test` — yeni testler dahil tüm backend testleri yeşil (**92 test, 0 fail**, regresyon yok; coverage-gate + scoring-engine testleri yeşil = skor davranışı değişmedi)
+- [x] Frontend build + smoke geçer
+- [ ] Antigravity: priority panel, risk badge'leri, coverage breakdown UI screenshot validation (opsiyonel — müşteri kendi analizini yapıyor)
+- [x] VPS deploy + canlı doğrulama (2026-05-15, Claude) — rsync + build + pm2 restart. Health `status:ok`. Canlı `/decision`: `coverage_breakdown.dominant_blocker:"keepa"` doğru, `risk_badges` `limited:true` dürüst, `priority_view.best_candidate` çalışıyor. Build sırasında 1 TS hatası (scan-progress serve path) bulunup düzeltildi (ek commit).
+- [x] TM.1: VPS'te `amazon_theses` tablosu — idempotent CREATE uygulandı (zaten mevcuttu, `DESCRIBE` şemayla birebir, ALTER yok)
+- [x] ~~Müşteriye ekran görüntüleriyle mesaj~~ — KALDIRILDI: müşteri kendi analizini yapıyor, ekran görüntüsü gerekmiyor
+
+> **Not (2026-05-15):** Kullanıcı kalıcı yetki verdi — `vps-paspas` SSH key'i ile VPS işlemleri ve git commit/push'u Claude her seferinde sormadan yapar. Müşteriye ekran görüntüsü göndermeye gerek yok.
+
+#### Tool Brief'leri
+> **Claude:** AC.1, RB.1, CT.1 (logic, eşikler, pure fonksiyonlar — skor mantığına dokunmaz)
+> **Codex:** AC.2/AC.3, RB.2/RB.3, CT.2/CT.3 (UI + test scaffold) — branch `phase45-codex`
+> **Antigravity:** priority panel, badge'ler, coverage breakdown görsel doğrulama
+
+#### Çıkış Kriterleri
+1. 3 başlık (AC/RB/CT) tamamlandı, skorlama davranışında regresyon YOK
+2. Tüm testler yeşil, V1 dürüstlük karakteri korundu (düşük güvende badge/aday uydurulmuyor)
+3. Müşteri ekranlardan doğruladı
+
+---
+
 ## Phase 5 (Ertelenen) — Threat Intelligence
 
 Phase 4 stabilizasyon sonrası, kullanıcı talimatıyla başlanır:
@@ -343,7 +469,7 @@ Phase 4 stabilizasyon sonrası, kullanıcı talimatıyla başlanır:
 > Phase 4 stabilizasyon kapsamında [CH.2, CH.3, CH.5, TM.1, TM.3, TM.4, TM.5, TM.7, UX2.2, UX4.1, UX4.2, UX4.4, T1, T2] görevleri sende. AGENTS.md'yi oku. Her görev için kabul kriterleri yukarıda. Tip/import güvenliği için `bun run typecheck` çalıştır. Backend testleri için `bun test`. Branch: `phase4-codex`. Bittikçe PR aç.
 
 ### Cursor için brief
-> [TM.4 polish] görevi sende. ThesesPanel'in scaffold'unu Codex yazıyor; sen tip güncellemeleri, import düzeni, kod kalitesi pass'i yap. Lokal IDE'de değişiklikleri yap, commit'le.
+> **Tamamlandı (2026-05-15):** TM.4 polish; Phase 4.5 tip/UI (`decision-clarity.tsx` paylaşımlı bileşenler); `ScanJourneyPanel` öncelik/risk/coverage; SKU kartlarında confidence stili; `server.ts` progress + scan detail için `risk_badges` stats düzeltmesi (`risk-badge-stats.ts`). **92 backend + 5 admin smoke test yeşil.** Cursor sıradaki iş yok — kalan: Antigravity screenshot, VPS deploy, müşteri onayı (commit kullanıcıda).
 
 ### Antigravity için brief
 > [T3 UI E2E] görevi sende. docs/antigravity-kb.md'yi oku. `/scan`, `/theses`, AdminShell banner, coverage gate uyarısı için screenshot validation yap. Görsel regression varsa raporla.

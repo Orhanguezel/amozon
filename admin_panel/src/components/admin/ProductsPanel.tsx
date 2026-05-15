@@ -5,6 +5,13 @@ import { ListChecks, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { apiGet, apiPost } from '@/integrations/admin-api';
 import { BrandBreakdown, ProductAnalytics } from './analytics';
 import {
+  LowCoverageBanner,
+  PriorityViewPanel,
+  RiskBadgeRow,
+  coverageBreakdownSummary,
+  percent,
+} from './decision-clarity';
+import {
   actionClass,
   blockerLabel,
   confidenceLabel,
@@ -16,17 +23,13 @@ import {
   sellerInfo,
   skuActionLabel,
   statusClass,
+  type PrioritySku,
   type Product,
   type KeepaScanStatus,
   type Scan,
   type ScanDetail,
   type SkuDecision,
 } from './types';
-
-function percent(value?: number | null) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
-  return `${Math.round(value * 100)}%`;
-}
 
 export function isStaleScan(scan?: { data_quality?: { scan_age_days?: number | null } | null } | null) {
   return Number(scan?.data_quality?.scan_age_days ?? 0) >= 7;
@@ -360,20 +363,25 @@ function SellerEnrichmentPanel({
   );
 }
 
+
 function DecisionSurfacePanel({
   detail,
   thesisLoading,
   onActivateThesis,
+  onSelectSku,
 }: {
   detail: ScanDetail | null;
   thesisLoading: boolean;
   onActivateThesis: () => void;
+  onSelectSku: (sku: PrioritySku) => void;
 }) {
   const surface = detail?.risk?.decision_surface ?? null;
   const quality = detail?.risk?.data_quality ?? null;
   const skuDecisions = detail?.risk?.sku_decisions ?? [];
   const distribution = surface?.action_distribution;
   const dataGate = surface?.data_gate;
+  const coverageSummary = coverageBreakdownSummary(quality?.coverage_breakdown);
+  const riskBadges = surface?.risk_badges ?? [];
   const topSkuDecisions = skuDecisions.slice(0, 8);
 
   if (!surface && !quality && !skuDecisions.length) return null;
@@ -389,7 +397,7 @@ function DecisionSurfacePanel({
       </div>
       <div className="panel-body decision-surface-body">
         {hasLowCoverageWarning(quality) ? (
-          <div className="preliminary-banner">ÖN DEĞERLENDİRME — coverage düşük</div>
+          <LowCoverageBanner breakdown={quality?.coverage_breakdown} coverageSummary={coverageSummary} />
         ) : null}
         {surface?.gate_applied ? <div className="preliminary-banner">Coverage gate uygulandı; karar TAKİP ET'e düşürüldü.</div> : null}
         <div className="decision-hero">
@@ -411,6 +419,8 @@ function DecisionSurfacePanel({
           <div className="metric compact"><div className="metric-label">Satıcı Kapsaması</div><div className="metric-value">{percent(quality?.seller_coverage)}</div></div>
           <div className="metric compact"><div className="metric-label">Keepa Kapsaması</div><div className="metric-value">{percent(quality?.keepa_coverage)}</div></div>
         </div>
+        {surface?.priority_view ? <PriorityViewPanel onSelectSku={onSelectSku} priority={surface.priority_view} /> : null}
+        <RiskBadgeRow badges={riskBadges} />
         <div className="decision-columns">
           <div className="decision-list">
             <h3>Veri Hazırlık Durumu</h3>
@@ -445,16 +455,20 @@ function DecisionSurfacePanel({
         </div>
         {topSkuDecisions.length ? (
           <div className="sku-decision-grid">
-            {topSkuDecisions.map((sku, index) => (
-              <div className="sku-card" key={`${sku.asin || sku.title}-${index}`}>
-                <div className="sku-card-head">
-                  <span className={`badge ${actionClass(sku.action)}`}>{skuActionLabel(sku.action)}</span>
-                  <span className="muted">{confidenceLabel(sku.confidence)}</span>
+            {topSkuDecisions.map((sku, index) => {
+              const confidenceKey = String(sku.confidence || '').toLowerCase();
+              const insufficient = confidenceKey === 'insufficient_data';
+              return (
+                <div className={`sku-card confidence-${confidenceKey}`} key={`${sku.asin || sku.title}-${index}`}>
+                  <div className="sku-card-head">
+                    <span className={`badge ${actionClass(sku.action)}`}>{skuActionLabel(sku.action)}</span>
+                    <span className="muted">{confidenceLabel(sku.confidence)}</span>
+                  </div>
+                  <strong>{sku.title}</strong>
+                  <p>{insufficient ? 'Veri yetersiz, skor güvenilir değil' : sku.reasons[0] || 'Veri kalitesi yeterli.'}</p>
                 </div>
-                <strong>{sku.title}</strong>
-                <p>{sku.reasons[0] || 'Veri kalitesi yeterli.'}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -697,7 +711,15 @@ export function ProductsPanel() {
         </div>
       </section>
 
-      <DecisionSurfacePanel detail={detail} onActivateThesis={activateThesis} thesisLoading={thesisLoading} />
+      <DecisionSurfacePanel
+        detail={detail}
+        onActivateThesis={activateThesis}
+        onSelectSku={(sku) => {
+          setProductSearch(sku.title.slice(0, 48));
+          setProductPage(0);
+        }}
+        thesisLoading={thesisLoading}
+      />
 
       <details className="advanced-actions">
         <summary>İleri enrichment araçları</summary>

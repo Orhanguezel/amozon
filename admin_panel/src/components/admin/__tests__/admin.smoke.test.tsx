@@ -9,7 +9,7 @@ import { ScansPanel } from '../ScansPanel';
 import { SettingsPanel } from '../SettingsPanel';
 import { ThesesPanel } from '../ThesesPanel';
 import { shouldShowBudgetBanner } from '@/components/layout/AdminShell';
-import { operatorAction, thesisStatusLabel } from '../types';
+import { coverageBreakdownSummary, operatorAction, thesisStatusLabel } from '../types';
 
 describe('admin panel smoke', () => {
   test('renders core modules without crashing', () => {
@@ -36,6 +36,17 @@ describe('admin panel smoke', () => {
     expect(hasLowCoverageWarning({ keepa_coverage: 0.4, seller_coverage: 0.1 })).toBe(false);
     expect(shouldShowBudgetBanner(19, 100)).toBe(true);
     expect(shouldShowBudgetBanner(20, 100)).toBe(false);
+  });
+
+  test('summarizes coverage breakdown for low-coverage banner', () => {
+    const text = coverageBreakdownSummary({
+      keepa_coverage: 0.2,
+      seller_coverage: 0.1,
+      stale_ratio: 0,
+      dominant_blocker: 'seller',
+    });
+    expect(text).toContain('Seller');
+    expect(text).toContain('%10');
   });
 
   test('maps thesis statuses for operator tabs', () => {

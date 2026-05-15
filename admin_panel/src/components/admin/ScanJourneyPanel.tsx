@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Play, CheckCircle2, AlertCircle, Loader2, MinusCircle, Clock } from 'lucide-react';
 import { apiGet, apiPost } from '@/integrations/admin-api';
+import { LowCoverageBanner, PriorityViewPanel, RiskBadgeRow, coverageBreakdownSummary } from './decision-clarity';
+import { hasLowCoverageWarning } from './ProductsPanel';
+import type { DataQuality, PriorityView, RiskBadge } from './types';
 
 type StageStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
 type Stage = { status: StageStatus; progress: number; detail: string };
@@ -31,6 +34,10 @@ type ProgressResponse = {
     seller_coverage: number;
     scan_age_days?: number | null;
     stale_data?: boolean;
+    keepa_coverage?: number;
+    data_quality?: DataQuality | null;
+    priority_view?: PriorityView | null;
+    risk_badges?: RiskBadge[];
   };
 };
 
@@ -263,6 +270,17 @@ export function ScanJourneyPanel() {
                 {summary.stale_data || Number(summary.scan_age_days ?? 0) >= 7 ? (
                   <div className="scan-summary-warning stale-warning">Veri bayat — yeniden tarama önerilir</div>
                 ) : null}
+                {hasLowCoverageWarning({
+                  keepa_coverage: summary.data_quality?.keepa_coverage ?? summary.keepa_coverage,
+                  seller_coverage: summary.seller_coverage,
+                }) ? (
+                  <LowCoverageBanner
+                    breakdown={summary.data_quality?.coverage_breakdown}
+                    coverageSummary={coverageBreakdownSummary(summary.data_quality?.coverage_breakdown)}
+                  />
+                ) : null}
+                {summary.risk_badges?.length ? <RiskBadgeRow badges={summary.risk_badges} /> : null}
+                {summary.priority_view ? <PriorityViewPanel compact priority={summary.priority_view} /> : null}
                 <div className="scan-summary-actions">
                   <Link className="button" href={`/products?job=${jobId}`}>Sonuçları İncele</Link>
                   {summary.decision === 'GUVENLI' || summary.decision === 'DIKKATLI_OL' || summary.decision === 'MIXED_SIGNAL' ? (
