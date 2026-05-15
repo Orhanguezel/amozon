@@ -1,7 +1,10 @@
 import { calculateCategoryStats, normalizeProducts } from './category.normalizer';
 import { CompositeScorer, calculateOutreachPriority } from './composite.scorer';
+import { buildCoverageBreakdown } from './coverage-breakdown';
 import { evaluateCoverageGate } from './coverage-gate';
 import { generatePersuasionPoints, synthesizeCommercialSummary } from './persuasion.generator';
+import { buildPriorityView } from './priority-view';
+import { deriveRiskBadges } from './risk-badges';
 import { validateSignals } from './signal.validator';
 import { scoreBrandReliability } from './scorers/brand-reliability.scorer';
 import { scoreCategoryRisk } from './scorers/category-risk.scorer';
@@ -58,6 +61,11 @@ export function scoreAmazonCategory(input: {
   );
   const dataGate = buildDataGate(dataQuality, actionDistribution, scraperConfig.REQUIRE_PRICE_DATA && !hasPriceData);
   const decisionSurface = buildDecisionSurface(scores, validated.decision, dataQuality, compositeScore, actionDistribution, dataGate);
+  decisionSurface.priority_view = buildPriorityView(skuDecisions);
+  decisionSurface.risk_badges = deriveRiskBadges(scores, dataQuality, {
+    dominantBrandRatio: stats.dominantBrandRatio,
+    sellerCount: stats.sellerCount,
+  });
   const gated = applyCoverageGate(validated.decision, decisionSurface, dataQuality);
   const insufficientDataReason = buildInsufficientDataReason({
     products,
@@ -304,6 +312,11 @@ export function buildDataQuality(products: Array<NormalizedProduct | AmazonProdu
     price_coverage: Number(priceCoverage.toFixed(2)),
     seller_coverage: Number(sellerCoverage.toFixed(2)),
     keepa_coverage: Number(keepaCoverage.toFixed(2)),
+    coverage_breakdown: buildCoverageBreakdown({
+      keepa_coverage: Number(keepaCoverage.toFixed(2)),
+      seller_coverage: Number(sellerCoverage.toFixed(2)),
+      scan_age_days: null,
+    }),
     has_price_data: priceCoverage > 0,
     has_keepa_snapshot: keepaCoverage > 0,
     confidence_blockers: blockers,

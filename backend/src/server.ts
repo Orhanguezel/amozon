@@ -9,6 +9,10 @@ import { getLatestAmazonRiskReport } from '@/amazon/risk-report.service';
 import { buildActionDistribution, buildDataGate, buildDataQuality, buildDecisionSurface, buildSkuDecisions } from '@/amazon/amazon.scoring-engine';
 import { withScanAge } from '@/amazon/data-quality-age';
 import { closeThesis, createThesis, evaluateThesis, listTheses } from '@/amazon/thesis.service';
+import { buildPriorityView } from '@/amazon/priority-view';
+import { deriveRiskBadges } from '@/amazon/risk-badges';
+import { riskBadgeStatsFromProducts } from '@/amazon/risk-badge-stats';
+import type { SkuDecision } from '@/amazon/amazon.types';
 import { calculateCategoryStats, normalizeProducts } from '@/amazon/category.normalizer';
 import { scoreSkuChaos } from '@/amazon/scorers/sku-chaos.scorer';
 import type { AmazonRiskReport, Confidence } from '@/amazon/amazon.types';
@@ -338,15 +342,29 @@ async function getScan(jobId: string) {
     parsedActionDistribution,
     parsedDataGate,
   ) : null;
+  const badgeStats = riskBadgeStatsFromProducts(
+    fallbackProducts,
+    String(scan.keyword || ''),
+    String(scan.marketplace || 'com'),
+  );
+  const decoratedSurface: Record<string, unknown> | null = parsedDecisionSurface ? {
+    ...parsedDecisionSurface,
+    priority_view: parsedDecisionSurface.priority_view ?? (parsedSkuDecisions ? buildPriorityView(parsedSkuDecisions as ReturnType<typeof buildSkuDecisions>) : undefined),
+    risk_badges: parsedDecisionSurface.risk_badges ?? deriveRiskBadges(
+      riskScoresFromRow(risk ?? {}),
+      parsedDataQuality ?? fallbackDataQuality,
+      badgeStats,
+    ),
+  } : null;
 
   return {
     scan,
     risk: risk ? {
       ...risk,
       data_quality: parsedDataQuality,
-      decision_surface: parsedDecisionSurface,
+      decision_surface: decoratedSurface,
       sku_decisions: parsedSkuDecisions,
-      insufficient_data_reason: buildDataIssueReason(parsedDataQuality, parsedDecisionSurface?.data_gate) ?? enrichment?.insufficient_data_reason ?? null,
+      insufficient_data_reason: buildDataIssueReason(parsedDataQuality, decoratedSurface?.data_gate) ?? enrichment?.insufficient_data_reason ?? null,
       keepa_trend: keepaTrend,
     } : null,
     products,
@@ -386,8 +404,31 @@ async function getDecisionJson(jobId: string, options: { skuLimit?: number; skuO
   } : null;
   const effectiveCompositeScore = scores ? weightedCompositeFromScores(scores) : null;
   const decoratedDecisionSurface = decorateDecisionSurface(decisionSurface, risk?.data_quality, scores);
+  const normalizedSkus = normalizeDecisionSkus(risk?.sku_decisions, risk?.data_quality, decoratedDecisionSurface?.data_gate, String(scan.keyword || ''));
+  const decisionProducts = (detail.products as Array<Record<string, unknown>>).map((product) => ({
+    product_title: String(product.title || ''),
+    price: numberOrUndefined(product.price),
+    rating: numberOrUndefined(product.rating),
+    review_count: Number(product.review_count || 0),
+    seller_name: typeof product.seller_name === 'string' ? product.seller_name : undefined,
+    product_url: typeof product.product_url === 'string' ? product.product_url : undefined,
+  }));
+  const decisionBadgeStats = riskBadgeStatsFromProducts(
+    decisionProducts,
+    String(scan.keyword || ''),
+    String(scan.marketplace || 'com'),
+  );
+  const hardeningDecisionSurface: Record<string, unknown> | null = decoratedDecisionSurface ? {
+    ...decoratedDecisionSurface,
+    priority_view: decoratedDecisionSurface.priority_view ?? buildPriorityView(normalizedSkus as ReturnType<typeof buildSkuDecisions>),
+    risk_badges: decoratedDecisionSurface.risk_badges ?? (scores ? deriveRiskBadges(
+      scores as AmazonRiskReport['scores'],
+      risk?.data_quality as AmazonRiskReport['data_quality'],
+      decisionBadgeStats,
+    ) : []),
+  } : null;
   const skuPage = buildSkuPage(
-    normalizeDecisionSkus(risk?.sku_decisions, risk?.data_quality, decoratedDecisionSurface?.data_gate, String(scan.keyword || '')),
+    normalizedSkus,
     options,
   );
   return {
@@ -400,7 +441,7 @@ async function getDecisionJson(jobId: string, options: { skuLimit?: number; skuO
       composite_score: effectiveCompositeScore ?? toNumberOrNull(scan.composite_score),
       stored_composite_score: toNumberOrNull(scan.composite_score),
       legacy_decision: scan.decision,
-      primary_action: decoratedDecisionSurface?.primary_action ?? null,
+      primary_action: hardeningDecisionSurface?.primary_action ?? null,
     },
     scores,
     score_method: {
@@ -409,7 +450,7 @@ async function getDecisionJson(jobId: string, options: { skuLimit?: number; skuO
       excluded_confidence: ['LOW', 'INSUFFICIENT_DATA'],
       note: 'Composite skor düz aritmetik ortalama değildir; karar üretebilen boyutlar kendi ağırlıklarıyla normalize edilir. Eski scan kayıtlarında stored_composite_score ayrıca korunur.',
     },
-    decision_surface: decoratedDecisionSurface ?? null,
+    decision_surface: hardeningDecisionSurface ?? null,
     data_quality: risk?.data_quality ?? null,
     sku_decisions: skuPage.items,
     sku_pagination: skuPage.pagination,
@@ -788,6 +829,27 @@ async function getScanProgress(jobId: string) {
       : null;
 
     const scanAgeDays = Math.floor((Date.now() - new Date(job.created_at || Date.now()).getTime()) / (1000 * 60 * 60 * 24));
+    const [progressProductRows] = await pool.execute(
+      `SELECT title, price, rating, review_count, seller_name, product_url
+       FROM amazon_products WHERE job_id = ?`,
+      [jobId],
+    );
+    const progressProducts = (progressProductRows as Array<Record<string, unknown>>).map((product) => ({
+      product_title: String(product.title || ''),
+      price: numberOrUndefined(product.price),
+      rating: numberOrUndefined(product.rating),
+      review_count: Number(product.review_count || 0),
+      seller_name: typeof product.seller_name === 'string' ? product.seller_name : undefined,
+      product_url: typeof product.product_url === 'string' ? product.product_url : undefined,
+    }));
+    const parsedDataQuality = withScanAge(dataQuality, job.created_at);
+    const typedSkuDecisions = Array.isArray(skuDecisions) ? (skuDecisions as SkuDecision[]) : [];
+    const progressScores = riskScoresFromRow(scoreRow as Record<string, unknown>);
+    const progressBadgeStats = riskBadgeStatsFromProducts(
+      progressProducts,
+      String(job.keyword || ''),
+      marketplace,
+    );
     summary = {
       data_points: productCount,
       decision_ready_count: decisionReady,
@@ -797,8 +859,12 @@ async function getScanProgress(jobId: string) {
       decision: (scoreRow.decision as string) || null,
       brand_coverage: productCount > 0 ? Number((withBrand / productCount).toFixed(2)) : 0,
       seller_coverage: productCount > 0 ? Number((withSeller / productCount).toFixed(2)) : 0,
+      keepa_coverage: Number(parsedDataQuality?.keepa_coverage ?? 0),
       scan_age_days: scanAgeDays,
       stale_data: scanAgeDays > 7,
+      data_quality: parsedDataQuality,
+      priority_view: buildPriorityView(typedSkuDecisions),
+      risk_badges: deriveRiskBadges(progressScores, parsedDataQuality, progressBadgeStats),
     };
   }
 
@@ -841,7 +907,7 @@ function mergeDecisionSurface(
   legacyDecision: AmazonRiskReport['decision'],
   actionDistribution: unknown,
   dataGate: unknown,
-) {
+): Record<string, unknown> | null {
   if (!fallback && !stored) return null;
   return {
     ...(fallback ?? {}),

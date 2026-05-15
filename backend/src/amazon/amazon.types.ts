@@ -46,9 +46,19 @@ export type DataQuality = {
   seller_coverage: number;
   keepa_coverage: number;
   scan_age_days?: number | null;
+  coverage_breakdown?: CoverageBreakdown;
   has_price_data: boolean;
   has_keepa_snapshot: boolean;
   confidence_blockers: ConfidenceBlocker[];
+};
+
+export type CoverageBlocker = 'keepa' | 'seller' | 'stale' | 'none';
+
+export type CoverageBreakdown = {
+  keepa_coverage: number;
+  seller_coverage: number;
+  stale_ratio: number;
+  dominant_blocker: CoverageBlocker;
 };
 
 export type DataGate = {
@@ -79,6 +89,8 @@ export type DecisionSurface = {
   confidence: Confidence;
   confidence_blockers: ConfidenceBlocker[];
   gate_applied?: boolean;
+  priority_view?: PriorityView;
+  risk_badges?: RiskBadge[];
   top_reasons: string[];
   operator_summary: string;
   data_gate: DataGate;
@@ -96,6 +108,32 @@ export type DimensionScore = {
   score: number;
   confidence: Confidence;
   reason: string;
+};
+
+export type PrioritySku = {
+  asin: string | null;
+  title: string;
+  action: SkuAction;
+  confidence: Confidence;
+  reason: string;
+};
+
+export type PriorityView = {
+  highest_confidence: PrioritySku[];
+  lowest_chaos: PrioritySku[];
+  best_candidate: PrioritySku[];
+  empty_reason: string | null;
+};
+
+export type RiskBadgeType = 'AMAZON_DOMINANT' | 'HIGH_SELLER_CHAOS' | 'HIGH_MAP_CONTROL';
+
+export type RiskBadge = {
+  type: RiskBadgeType;
+  label: string;
+  tone: 'dominance' | 'chaos' | 'map';
+  limited: boolean;
+  source: string;
+  description: string;
 };
 
 export type AmazonCategoryStats = {

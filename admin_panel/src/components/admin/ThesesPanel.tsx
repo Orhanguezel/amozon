@@ -121,10 +121,19 @@ export function ThesesPanel() {
             <p className={feedback.kind === 'err' ? 'error' : 'message-success'}>{feedback.text}</p>
           ) : null}
           <p className="muted">{countText}</p>
+          {loading ? <p className="muted">Tezler yükleniyor…</p> : null}
         </div>
       </section>
 
       <div className="thesis-grid">
+        {!loading && theses.length === 0 ? (
+          <section className="panel thesis-empty">
+            <div className="panel-body">
+              <p>Bu sekmede henüz tez yok.</p>
+              <p className="muted">AL veya Takip Et kararlı bir taramada &quot;Tezi Aktive Et&quot; ile yeni tez oluşturabilirsiniz.</p>
+            </div>
+          </section>
+        ) : null}
         {theses.map((thesis) => (
           <article className={`panel thesis-card thesis-${thesis.status}`} key={thesis.id}>
             <div className="panel-header">

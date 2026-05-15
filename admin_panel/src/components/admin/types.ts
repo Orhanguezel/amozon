@@ -24,15 +24,51 @@ export type Product = {
   product_url: string | null;
 };
 
+export type CoverageBlocker = 'keepa' | 'seller' | 'stale' | 'none';
+
+export type CoverageBreakdown = {
+  keepa_coverage: number;
+  seller_coverage: number;
+  stale_ratio: number;
+  dominant_blocker: CoverageBlocker;
+};
+
 export type DataQuality = {
   data_points: number;
   price_coverage: number;
   seller_coverage: number;
   keepa_coverage: number;
   scan_age_days?: number | null;
+  coverage_breakdown?: CoverageBreakdown;
   has_price_data: boolean;
   has_keepa_snapshot: boolean;
   confidence_blockers: string[];
+};
+
+export type PrioritySku = {
+  asin: string | null;
+  title: string;
+  action: 'AL' | 'TAKIP_ET' | 'UZAK_DUR';
+  confidence: string;
+  reason: string;
+};
+
+export type PriorityView = {
+  highest_confidence: PrioritySku[];
+  lowest_chaos: PrioritySku[];
+  best_candidate: PrioritySku[];
+  empty_reason: string | null;
+};
+
+export type RiskBadgeType = 'AMAZON_DOMINANT' | 'HIGH_SELLER_CHAOS' | 'HIGH_MAP_CONTROL';
+
+export type RiskBadge = {
+  type: RiskBadgeType;
+  label: string;
+  tone: 'dominance' | 'chaos' | 'map';
+  limited: boolean;
+  source: string;
+  description: string;
 };
 
 export type DecisionSurface = {
@@ -41,6 +77,8 @@ export type DecisionSurface = {
   confidence: string;
   confidence_blockers: string[];
   gate_applied?: boolean;
+  priority_view?: PriorityView;
+  risk_badges?: RiskBadge[];
   top_reasons: string[];
   operator_summary: string;
   data_gate?: {
@@ -319,6 +357,33 @@ export function thesisJsonSummary(data: Record<string, unknown>, maxKeys = 6): s
 
 export function actionClass(action?: string | null) {
   return `action-${skuActionLabel(action).toLowerCase().replaceAll(' ', '-')}`;
+}
+
+export function coverageBlockerLabel(blocker?: CoverageBlocker | null) {
+  switch (blocker) {
+    case 'seller':
+      return 'Satıcı verisi';
+    case 'keepa':
+      return 'Keepa';
+    case 'stale':
+      return 'Bayat veri';
+    case 'none':
+      return 'Belirgin eksik yok';
+    default:
+      return blocker || '-';
+  }
+}
+
+export function coverageBreakdownSummary(breakdown?: CoverageBreakdown | null) {
+  if (!breakdown) return null;
+  const seller = Math.round(breakdown.seller_coverage * 100);
+  const keepa = Math.round(breakdown.keepa_coverage * 100);
+  const stale = Math.round(breakdown.stale_ratio * 100);
+  const source =
+    breakdown.dominant_blocker === 'none'
+      ? 'Katmanlar dengeli'
+      : `Düşük coverage kaynağı: ${coverageBlockerLabel(breakdown.dominant_blocker)}`;
+  return `${source} — Seller (%${seller}) / Keepa (%${keepa}) / Bayat (%${stale})`;
 }
 
 export function blockerLabel(blocker?: string | null) {
