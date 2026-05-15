@@ -435,8 +435,8 @@ Son güncelleme: 2026-05-15 (Müşteri V1 – Bedrock fazını teknik olarak KAB
 - [x] `bun test` — yeni testler dahil tüm backend testleri yeşil (**92 test, 0 fail**, regresyon yok; coverage-gate + scoring-engine testleri yeşil = skor davranışı değişmedi)
 - [x] Frontend build + smoke geçer
 - [ ] Antigravity: priority panel, risk badge'leri, coverage breakdown UI screenshot validation (opsiyonel — müşteri kendi analizini yapıyor)
-- [ ] VPS deploy + canlı doğrulama (Claude yapar — `ssh vps-paspas`, izin sormadan)
-- [ ] TM.1: VPS'te `amazon_theses` tablosu (seed ile, ALTER yok)
+- [x] VPS deploy + canlı doğrulama (2026-05-15, Claude) — rsync + build + pm2 restart. Health `status:ok`. Canlı `/decision`: `coverage_breakdown.dominant_blocker:"keepa"` doğru, `risk_badges` `limited:true` dürüst, `priority_view.best_candidate` çalışıyor. Build sırasında 1 TS hatası (scan-progress serve path) bulunup düzeltildi (ek commit).
+- [x] TM.1: VPS'te `amazon_theses` tablosu — idempotent CREATE uygulandı (zaten mevcuttu, `DESCRIBE` şemayla birebir, ALTER yok)
 - [x] ~~Müşteriye ekran görüntüleriyle mesaj~~ — KALDIRILDI: müşteri kendi analizini yapıyor, ekran görüntüsü gerekmiyor
 
 > **Not (2026-05-15):** Kullanıcı kalıcı yetki verdi — `vps-paspas` SSH key'i ile VPS işlemleri ve git commit/push'u Claude her seferinde sormadan yapar. Müşteriye ekran görüntüsü göndermeye gerek yok.
