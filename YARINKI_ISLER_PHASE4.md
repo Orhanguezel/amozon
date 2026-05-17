@@ -404,6 +404,15 @@ Son güncelleme: 2026-05-15 (Müşteri V1 – Bedrock fazını teknik olarak KAB
 #### RB.3 — Unit Test [💻 Codex]
 - [x] `risk-badges.test.ts`: eşik altı → badge yok, eşik üstü → doğru badge, düşük coverage → suppressed/sınırlı
 
+#### RB.4 — Badge Açıklama Clarity (müşteri ek talebi, 2026-05-17) [🧠 Claude]
+- [x] 3 sinyal rozetinin `description`'ı müşteri operatör wording'ine güncellendi (AMAZON DOMINANT/HIGH SELLER CHAOS/HIGH MAP CONTROL)
+- [x] `LOW_COVERAGE` + `STALE_DATA` şeffaflık rozetleri eklendi (data_quality/scan_age_days'ten türetilmiş — sinyal değil, yeni reasoning yok; sinyal rozetleri bastırılsa bile gösterilir)
+- [x] UI: açıklama tooltip yerine görünür `.badge-desc` satırı + `coverage`/`stale` tone CSS
+- [x] **Serve path düzeltmesi:** `risk_badges` artık her zaman yeniden türetiliyor (persist edilmiş eski badge metni güncel açıklamayı gölgeliyordu)
+- [x] Canlı doğrulandı: `LOW_COVERAGE` + yeni `HIGH_SELLER_CHAOS` wording'i production'da görünüyor; backend 94/0, admin 5/0
+
+**Kabul:** Operatör rozetin yanında kısa açıklamayı görüyor; metinler müşteri wording'i; skor/karar davranışı değişmedi.
+
 ---
 
 ### CT — Coverage Transparency
