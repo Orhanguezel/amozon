@@ -44,8 +44,11 @@ export function RiskBadgeRow({ badges }: { badges: RiskBadge[] }) {
   return (
     <div className="risk-badge-row">
       {badges.map((badge) => (
-        <span className={`badge ${badge.tone}`} key={badge.type} title={badge.description}>
-          {badge.label}
+        <span className={`badge-item badge-${badge.tone}`} key={badge.type}>
+          <span className={`badge ${badge.tone}`} title={badge.description}>
+            {badge.label}
+          </span>
+          <span className="badge-desc">{badge.description}</span>
         </span>
       ))}
     </div>

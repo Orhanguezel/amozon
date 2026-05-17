@@ -69,22 +69,58 @@ describe('risk badges', () => {
     expect(badges.map((b) => b.type)).not.toContain('HIGH_SELLER_CHAOS');
   });
 
-  test('suppresses badges when both seller and keepa coverage are too low', () => {
+  test('suppresses SIGNAL badges when both coverage low but still shows LOW_COVERAGE transparency badge', () => {
     const badges = deriveRiskBadges({
       ...baseScores,
       brand_reliability: { score: 9, confidence: 'HIGH', reason: 'dominant' },
     }, { seller_coverage: 0, keepa_coverage: 0 });
 
-    expect(badges).toEqual([]);
+    // Sinyal rozeti yok (dürüstlük) ama şeffaflık rozeti gösterilir.
+    expect(badges.map((b) => b.type)).toEqual(['LOW_COVERAGE']);
   });
 
-  test('marks badges as limited when one supporting coverage layer is weak', () => {
+  test('marks signal badge as limited when one supporting coverage layer is weak', () => {
     const badges = deriveRiskBadges({
       ...baseScores,
       sku_chaos: { score: 8, confidence: 'HIGH', reason: 'chaos' },
     }, { seller_coverage: 0.2, keepa_coverage: 0.9 });
 
-    expect(badges[0]?.limited).toBe(true);
-    expect(badges[0]?.label).toContain('sınırlı veri');
+    expect(badges.map((b) => b.type)).toContain('LOW_COVERAGE');
+    const chaos = badges.find((b) => b.type === 'HIGH_SELLER_CHAOS');
+    expect(chaos?.limited).toBe(true);
+    expect(chaos?.label).toContain('sınırlı veri');
+  });
+
+  test('LOW_COVERAGE / STALE_DATA transparency badges (müşteri clarity talebi)', () => {
+    const lowCov = deriveRiskBadges(baseScores, { seller_coverage: 0.1, keepa_coverage: 0.9 });
+    const lc = lowCov.find((b) => b.type === 'LOW_COVERAGE');
+    expect(lc?.description).toBe('Karar sınırlı seller/enrichment verisiyle üretildi.');
+    expect(lc?.tone).toBe('coverage');
+
+    const stale = deriveRiskBadges(baseScores, { seller_coverage: 1, keepa_coverage: 1, scan_age_days: 9 });
+    const sd = stale.find((b) => b.type === 'STALE_DATA');
+    expect(sd?.description).toBe('Veri güncel olmayabilir, eski snapshot kullanılıyor olabilir.');
+    expect(sd?.tone).toBe('stale');
+
+    const clean = deriveRiskBadges(baseScores, { seller_coverage: 1, keepa_coverage: 1, scan_age_days: 1 });
+    expect(clean.map((b) => b.type)).not.toContain('STALE_DATA');
+    expect(clean.map((b) => b.type)).not.toContain('LOW_COVERAGE');
+  });
+
+  test('signal badge descriptions use customer operator wording', () => {
+    const badges = deriveRiskBadges(
+      {
+        ...baseScores,
+        category_risk: { score: 8, confidence: 'HIGH', reason: 'dominant' },
+        sku_chaos: { score: 8, confidence: 'HIGH', reason: 'chaos' },
+        price_war_risk: { score: 1, confidence: 'HIGH', reason: 'rigid' },
+      },
+      { seller_coverage: 0.9, keepa_coverage: 0.9 },
+      { dominantBrandRatio: 0.6, sellerCount: 80 },
+    );
+    const byType = Object.fromEntries(badges.map((b) => [b.type, b.description]));
+    expect(byType.AMAZON_DOMINANT).toBe('Amazon seller presence yüksek, BuyBox/marj baskısı riski.');
+    expect(byType.HIGH_SELLER_CHAOS).toBe('Seller volatilitesi ve fiyat savaşı riski yüksek.');
+    expect(byType.HIGH_MAP_CONTROL).toBe('Marka fiyat disiplini yüksek, yetkisiz seller/IP riski olabilir.');
   });
 });

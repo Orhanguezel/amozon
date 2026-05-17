@@ -60,12 +60,17 @@ export type PriorityView = {
   empty_reason: string | null;
 };
 
-export type RiskBadgeType = 'AMAZON_DOMINANT' | 'HIGH_SELLER_CHAOS' | 'HIGH_MAP_CONTROL';
+export type RiskBadgeType =
+  | 'AMAZON_DOMINANT'
+  | 'HIGH_SELLER_CHAOS'
+  | 'HIGH_MAP_CONTROL'
+  | 'LOW_COVERAGE'
+  | 'STALE_DATA';
 
 export type RiskBadge = {
   type: RiskBadgeType;
   label: string;
-  tone: 'dominance' | 'chaos' | 'map';
+  tone: 'dominance' | 'chaos' | 'map' | 'coverage' | 'stale';
   limited: boolean;
   source: string;
   description: string;
