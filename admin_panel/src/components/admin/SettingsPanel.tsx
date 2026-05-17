@@ -144,6 +144,14 @@ type Health = {
   uptime_seconds: number;
   errors_last_24h: number;
   keepa: { budget_remaining: number; budget_total: number; queue_pending: number };
+  oxylabs?: {
+    configured: boolean;
+    estimated_requests_last_24h: number;
+    average_requests_per_scan: number;
+    seller_detail_rows_last_24h: number;
+    product_rows_last_24h: number;
+    cache_hit_rate: number | null;
+  };
   scheduler: { last_keepa_run: string | null; last_seller_run: string | null };
 };
 
@@ -306,6 +314,8 @@ export function SettingsPanel() {
             <div className="score-card">
               <strong>Oxylabs</strong>
               <div className="score-row"><span>Amazon tarama</span><BoolBadge active={Boolean(settings?.oxylabsConfigured)} /></div>
+              <div className="score-row"><span>24s tahmini istek</span><b>{health?.oxylabs?.estimated_requests_last_24h ?? '-'}</b></div>
+              <div className="score-row"><span>Scan başı ort.</span><b>{health?.oxylabs ? health.oxylabs.average_requests_per_scan : '-'}</b></div>
             </div>
             <div className="score-card">
               <strong>Keepa</strong>
@@ -570,6 +580,36 @@ export function SettingsPanel() {
               })}
             </div>
           ) : null}
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2 className="panel-title">Oxylabs Kullanımı</h2>
+            <p className="muted">Son 24 saatteki tarama ve seller detail akışından tahmini istek tüketimi.</p>
+          </div>
+          <BoolBadge active={Boolean(health?.oxylabs?.configured ?? settings?.oxylabsConfigured)} />
+        </div>
+        <div className="panel-body">
+          <div className="metrics">
+            <div className="metric">
+              <div className="metric-label">Tahmini İstek</div>
+              <div className="metric-value">{health?.oxylabs?.estimated_requests_last_24h ?? '-'}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Scan Başı Ortalama</div>
+              <div className="metric-value">{health?.oxylabs?.average_requests_per_scan ?? '-'}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Seller Detail</div>
+              <div className="metric-value">{health?.oxylabs?.seller_detail_rows_last_24h ?? '-'}</div>
+            </div>
+            <div className="metric">
+              <div className="metric-label">Cache Hit</div>
+              <div className="metric-value">{health?.oxylabs?.cache_hit_rate == null ? '—' : `${Math.round(health.oxylabs.cache_hit_rate * 100)}%`}</div>
+            </div>
+          </div>
         </div>
       </section>
       </>)}

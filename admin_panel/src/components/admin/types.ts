@@ -203,6 +203,9 @@ export type AmazonThesis = {
   created_at: string | null;
   last_evaluated_at: string | null;
   closed_at: string | null;
+  next_evaluation_at?: string | null;
+  evaluation_ready?: boolean;
+  days_until_evaluation?: number | null;
 };
 
 export type ThesesListResponse = {

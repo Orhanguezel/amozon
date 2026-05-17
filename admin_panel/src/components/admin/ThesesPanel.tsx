@@ -27,6 +27,15 @@ function formatCreatedAt(iso: string | null): string {
   }
 }
 
+function evaluationText(thesis: AmazonThesis): string {
+  if (thesis.status === 'closed') return 'Otomatik değerlendirme kapalı';
+  if (thesis.evaluation_ready) return 'Değerlendirmeye hazır';
+  if (typeof thesis.days_until_evaluation === 'number') {
+    return `Sonraki otomatik değerlendirme ~${thesis.days_until_evaluation} gün sonra`;
+  }
+  return 'Otomatik değerlendirme zamanı hesaplanıyor';
+}
+
 export function ThesesPanel() {
   const [status, setStatus] = useState<ThesisStatus>('active');
   const [theses, setTheses] = useState<AmazonThesis[]>([]);
@@ -157,6 +166,9 @@ export function ThesesPanel() {
                   Güncel <b>{thesis.current_composite_score ?? '—'}</b>
                 </span>
               </div>
+              <p className={`thesis-schedule ${thesis.evaluation_ready ? 'ready' : ''}`}>
+                {evaluationText(thesis)}
+              </p>
               {thesis.weakness_note ? <p className="thesis-warning">{thesis.weakness_note}</p> : null}
               <div className="signal-diff-list">
                 {thesis.key_signals.map((signal) => (

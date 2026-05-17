@@ -11,14 +11,15 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const keyword = String(body.keyword || '').trim();
+  const asin = String(body.asin || '').trim();
   const marketplace = String(body.marketplace || 'com').trim() || 'com';
 
-  if (!keyword) {
-    return NextResponse.json({ error: 'keyword_required' }, { status: 400 });
+  if (!keyword && !asin) {
+    return NextResponse.json({ error: 'keyword_or_asin_required' }, { status: 400 });
   }
 
   return backendJson('/api/scans', {
     method: 'POST',
-    body: JSON.stringify({ keyword, marketplace, auto_add: Boolean(body.auto_add) }),
+    body: JSON.stringify({ keyword, asin, marketplace, auto_add: Boolean(body.auto_add) }),
   });
 }

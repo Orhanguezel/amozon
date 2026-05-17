@@ -113,7 +113,8 @@ export async function processSellerEnrichmentForJob(jobId: string, marketplace: 
 async function runSellerEnrichment() {
   if (!env.OXYLABS_USERNAME || !env.OXYLABS_PASSWORD) return;
   try {
-    // Find recent done scan with low seller coverage
+    // Find recent done scans with low seller coverage and advance several jobs
+    // per tick without exceeding the configured per-job batch.
     const [jobRows] = await pool.execute(`
       SELECT j.id, j.marketplace
       FROM amazon_scan_jobs j
@@ -125,15 +126,31 @@ async function runSellerEnrichment() {
             AND p.seller_name IS NOT NULL AND p.seller_name <> ''
         ) * 1.0 / NULLIF(j.data_points, 0) < ${SELLER_TARGET_COVERAGE}
       ORDER BY j.created_at DESC
-      LIMIT 1
+      LIMIT 3
     `);
     const jobs = jobRows as Array<{ id: string; marketplace: string }>;
     if (!jobs.length) return;
 
-    const job = jobs[0];
-    const { updated, attempted, aborted } = await processSellerEnrichmentForJob(job.id, job.marketplace, SELLER_BATCH_SIZE);
-    if (updated > 0 || aborted) {
-      console.log(`[scheduler] seller-enrichment: job=${job.id.slice(0, 8)} updated=${updated}/${attempted}${aborted ? ' (ABORTED: Oxylabs auth/quota)' : ''}`);
+    let totalUpdated = 0;
+    let totalAttempted = 0;
+    for (const job of jobs) {
+      const { updated, attempted, aborted } = await processSellerEnrichmentForJob(job.id, job.marketplace, SELLER_BATCH_SIZE);
+      totalUpdated += updated;
+      totalAttempted += attempted;
+      if (updated > 0 || attempted > 0 || aborted) {
+        console.log(`[scheduler] seller-enrichment: job=${job.id.slice(0, 8)} updated=${updated}/${attempted}${aborted ? ' (ABORTED: Oxylabs auth/quota)' : ''}`);
+      }
+      if (aborted) {
+        await createSchedulerNote(
+          'Oxylabs seller enrichment durdu',
+          `Seller enrichment Oxylabs auth/kota hatası nedeniyle durdu. Son job=${job.id}, denenen istek=${attempted}.`,
+          '/settings',
+        ).catch(() => undefined);
+        break;
+      }
+    }
+    if (totalAttempted > 0) {
+      console.log(`[scheduler] seller-enrichment usage: estimated_oxylabs_requests=${totalAttempted} updated=${totalUpdated}`);
     }
   } catch (err) {
     console.error('[scheduler] seller-enrichment error:', err instanceof Error ? err.message : String(err));

@@ -12,12 +12,23 @@ function authHeaders(): Record<string, string> {
   return apiSecret ? { authorization: `Bearer ${apiSecret}` } : {};
 }
 
+async function responseError(response: Response, fallbackPrefix: string): Promise<Error> {
+  const fallback = `${fallbackPrefix}_${response.status}`;
+  try {
+    const payload = await response.json() as { message?: unknown; detail?: unknown; error?: unknown };
+    const message = payload.message || payload.detail || payload.error;
+    return new Error(typeof message === 'string' && message.trim() ? message : fallback);
+  } catch {
+    return new Error(fallback);
+  }
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(apiPath(path), {
     cache: 'no-store',
     headers: authHeaders(),
   });
-  if (!response.ok) throw new Error(`API_ERROR_${response.status}`);
+  if (!response.ok) throw await responseError(response, 'API_ERROR');
   return response.json() as Promise<T>;
 }
 
@@ -27,7 +38,7 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: { 'content-type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`API_ERROR_${response.status}`);
+  if (!response.ok) throw await responseError(response, 'API_ERROR');
   return response.json() as Promise<T>;
 }
 
@@ -37,7 +48,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     headers: { 'content-type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`API_ERROR_${response.status}`);
+  if (!response.ok) throw await responseError(response, 'API_ERROR');
   return response.json() as Promise<T>;
 }
 
@@ -46,7 +57,7 @@ export async function apiDelete<T>(path: string): Promise<T> {
     method: 'DELETE',
     headers: authHeaders(),
   });
-  if (!response.ok) throw new Error(`API_ERROR_${response.status}`);
+  if (!response.ok) throw await responseError(response, 'API_ERROR');
   return response.json() as Promise<T>;
 }
 
@@ -58,6 +69,6 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
     headers: authHeaders(),
     body: form,
   });
-  if (!response.ok) throw new Error(`UPLOAD_ERROR_${response.status}`);
+  if (!response.ok) throw await responseError(response, 'UPLOAD_ERROR');
   return response.json() as Promise<T>;
 }

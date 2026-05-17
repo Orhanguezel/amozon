@@ -640,3 +640,41 @@ Confidence mantığı doğru çalışıyor. Ancak coverage düşüklüğünün h
 Bunları mevcut V1 karakterini güçlendiren küçük hardening dokunuşları olarak görüyorum.
 
 Genel olarak sistemin “dürüst ve stabil” karakteri oturmuş durumda. Emeğinize sağlık.
+
+Orhan Bey,
+
+/scan tarafına şu an erişemiyorum; muhtemelen deploy / maintenance süreci vardır diye düşündüm 🙂
+
+Uygun olduğunuzda kontrol edebilirseniz sevinirim.
+
+Bu arada küçük bir clarity noktası daha eklemek isterim:
+
+Risk badge’leri tarafında sadece etiketin görünmesi yerine, mümkünse kısa açıklama/metin desteği de operatör açısından oldukça faydalı olabilir diye düşünüyorum.
+
+Örneğin:
+
+* AMAZON DOMINANT → “Amazon seller presence yüksek, BuyBox/marj baskısı riski.”
+* HIGH SELLER CHAOS → “Seller volatilitesi ve fiyat savaşı riski yüksek.”
+* HIGH MAP CONTROL → “Marka fiyat disiplini yüksek, yetkisiz seller/IP riski olabilir.”
+* LOW COVERAGE → “Karar sınırlı seller/enrichment verisiyle üretildi.”
+* STALE DATA → “Veri güncel olmayabilir, eski snapshot kullanılıyor olabilir.”
+
+Buradaki amaç yeni reasoning üretmek değil; mevcut badge’lerin operatör tarafında daha hızlı ve açıklanabilir okunmasını sağlamak.
+
+Hafta sonu final canlı testlerini tamamlayıp, sistem stabil kaldığı takdirde V1 acceptance tarafını netleştirmeyi planlıyorum 🙂
+
+Orhan Bey,
+
+Oxylabs entegrasyonu sonrası birkaç canlı test daha yaptım. Genel akış çalışıyor ancak bazı noktalarda regresyon / operational edge-case davranışları gördüm; acceptance öncesi birlikte netleştirelim istedim 🙂
+
+1. ASIN mode tarafında API_ERROR_400 hatası alıyorum. Tekil ASIN scan akışı şu an tamamlanmıyor gibi görünüyor.
+
+2. Bazı durumlarda “Yeni Tarama” butonu disabled state’de kalıyor; refresh sonrası düzeliyor gibi ama state yönetiminde küçük bir issue olabilir.
+
+3. /theses tarafında tezlerin refresh davranışı çok statik görünüyor. Re-evaluation / decay tarafı çalışıyor mu emin olamadım; background refresh veya scheduler davranışını kontrol etmek iyi olabilir.
+
+4. Oxylabs aktif olmasına rağmen seller coverage tarafında beklediğim kadar dramatik yükseliş görmedim. Muhtemelen enrichment depth / retry / batching tarafında ayrıca optimizasyon gerekecek.
+
+5. Operasyonel açıdan güzel olabilecek bir ek gözlem: Keepa kotası gibi Oxylabs usage / estimated burn / cache hit visibility tarafı da ileride çok faydalı olur diye düşünüyorum.
+
+Bunları “V1 karakter problemi” olarak değil, daha çok canlı kullanım sırasında ortaya çıkan operational hardening başlıkları olarak görüyorum 🙂 Uygun olduğunuzda birlikte üzerinden geçebiliriz.

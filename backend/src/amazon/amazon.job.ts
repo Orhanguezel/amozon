@@ -269,7 +269,11 @@ export async function runAmazonJob(jobId: string) {
 
     const postScanTasks: Array<Promise<unknown>> = [];
     if (env.OXYLABS_USERNAME && env.OXYLABS_PASSWORD) {
-      postScanTasks.push(processSellerEnrichmentForJob(jobId, marketplace, env.SELLER_POST_SCAN_BATCH)
+      const targetSellerBatch = Math.min(
+        eligible.length,
+        Math.max(env.SELLER_POST_SCAN_BATCH, Math.ceil(eligible.length * env.SELLER_TARGET_COVERAGE)),
+      );
+      postScanTasks.push(processSellerEnrichmentForJob(jobId, marketplace, targetSellerBatch)
         .then(({ updated, attempted, aborted }) => {
           if (updated > 0 || aborted) console.log(`[job] seller enrichment: job=${jobId.slice(0, 8)} updated=${updated}/${attempted}${aborted ? ' (ABORTED: Oxylabs auth/quota)' : ''}`);
         }));

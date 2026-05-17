@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { pool } from '@/db/client';
+import { env } from '@/core/env';
 import type { AmazonRiskReport, SkuAction } from './amazon.types';
 
 export type ThesisStatus = 'active' | 'weakened' | 'broken' | 'closed';
@@ -27,6 +28,9 @@ export type DecoratedThesis = {
   created_at: string | null;
   last_evaluated_at: string | null;
   closed_at: string | null;
+  next_evaluation_at: string | null;
+  evaluation_ready: boolean;
+  days_until_evaluation: number | null;
 };
 
 const SCORE_LABELS: Record<keyof AmazonRiskReport['scores'], string> = {
@@ -224,6 +228,10 @@ function score(row: Record<string, unknown>, prefix: string) {
 }
 
 function decorateThesis(row: Record<string, unknown>): DecoratedThesis {
+  const createdAt = row.created_at === null || row.created_at === undefined ? null : String(row.created_at);
+  const lastEvaluatedAt = row.last_evaluated_at === null || row.last_evaluated_at === undefined ? null : String(row.last_evaluated_at);
+  const closedAt = row.closed_at === null || row.closed_at === undefined ? null : String(row.closed_at);
+  const schedule = thesisEvaluationSchedule(lastEvaluatedAt || createdAt, closedAt !== null);
   return {
     id: String(row.id ?? ''),
     job_id: String(row.job_id ?? ''),
@@ -241,8 +249,28 @@ function decorateThesis(row: Record<string, unknown>): DecoratedThesis {
     status: (String(row.status ?? 'active') as ThesisStatus),
     weakness_note: row.weakness_note === null || row.weakness_note === undefined ? null : String(row.weakness_note),
     operator_notes: row.operator_notes === null || row.operator_notes === undefined ? null : String(row.operator_notes),
-    created_at: row.created_at === null || row.created_at === undefined ? null : String(row.created_at),
-    last_evaluated_at: row.last_evaluated_at === null || row.last_evaluated_at === undefined ? null : String(row.last_evaluated_at),
-    closed_at: row.closed_at === null || row.closed_at === undefined ? null : String(row.closed_at),
+    created_at: createdAt,
+    last_evaluated_at: lastEvaluatedAt,
+    closed_at: closedAt,
+    next_evaluation_at: schedule.next_evaluation_at,
+    evaluation_ready: schedule.evaluation_ready,
+    days_until_evaluation: schedule.days_until_evaluation,
+  };
+}
+
+function thesisEvaluationSchedule(anchor: string | null, closed: boolean) {
+  if (!anchor || closed) {
+    return { next_evaluation_at: null, evaluation_ready: false, days_until_evaluation: null };
+  }
+  const anchorDate = new Date(anchor);
+  if (Number.isNaN(anchorDate.getTime())) {
+    return { next_evaluation_at: null, evaluation_ready: false, days_until_evaluation: null };
+  }
+  const next = new Date(anchorDate.getTime() + env.THESIS_STALE_DAYS * 24 * 60 * 60 * 1000);
+  const diffMs = next.getTime() - Date.now();
+  return {
+    next_evaluation_at: next.toISOString(),
+    evaluation_ready: diffMs <= 0,
+    days_until_evaluation: Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000))),
   };
 }

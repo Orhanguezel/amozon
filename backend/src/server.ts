@@ -1241,6 +1241,15 @@ async function getHealth() {
   const [errorRows] = await pool.execute(
     `SELECT COUNT(*) AS total FROM amazon_job_error_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
   );
+  const [oxylabsRows] = await pool.execute(
+    `SELECT
+       COUNT(DISTINCT j.id) AS scans_24h,
+       COUNT(p.id) AS product_rows_24h,
+       SUM(CASE WHEN p.seller_name IS NOT NULL AND p.seller_name <> '' THEN 1 ELSE 0 END) AS seller_rows_24h
+     FROM amazon_scan_jobs j
+     LEFT JOIN amazon_products p ON p.job_id = j.id
+     WHERE j.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+  );
   const [schedulerRows] = await pool.execute(
     `SELECT
        MAX(CASE WHEN status = 'done' THEN processed_at ELSE NULL END) AS last_keepa_run,
@@ -1250,6 +1259,11 @@ async function getHealth() {
   const queue = keepaUsage.queue as Record<string, unknown>;
   const today = keepaUsage.today as Record<string, unknown> | null;
   const scheduler = (schedulerRows as Array<Record<string, unknown>>)[0] ?? {};
+  const oxylabs = (oxylabsRows as Array<Record<string, unknown>>)[0] ?? {};
+  const scans24h = Number(oxylabs.scans_24h || 0);
+  const productRows24h = Number(oxylabs.product_rows_24h || 0);
+  const sellerRows24h = Number(oxylabs.seller_rows_24h || 0);
+  const estimatedRequests24h = scans24h + sellerRows24h;
   return {
     status: 'ok',
     uptime_seconds: Math.round(process.uptime()),
@@ -1261,6 +1275,14 @@ async function getHealth() {
     scheduler: {
       last_keepa_run: scheduler.last_keepa_run ?? scheduler.last_keepa_queue_run ?? null,
       last_seller_run: null,
+    },
+    oxylabs: {
+      configured: Boolean(env.OXYLABS_USERNAME && env.OXYLABS_PASSWORD),
+      estimated_requests_last_24h: estimatedRequests24h,
+      average_requests_per_scan: scans24h > 0 ? Number((estimatedRequests24h / scans24h).toFixed(1)) : 0,
+      seller_detail_rows_last_24h: sellerRows24h,
+      product_rows_last_24h: productRows24h,
+      cache_hit_rate: null,
     },
     errors_last_24h: Number((errorRows as Array<Record<string, unknown>>)[0]?.total || 0),
   };

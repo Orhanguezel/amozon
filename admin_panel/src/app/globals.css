@@ -2113,6 +2113,22 @@ tr.selected td {
   padding: 10px;
 }
 
+.thesis-schedule {
+  margin: 12px 0 0;
+  border-left: 4px solid #94a3b8;
+  background: #f8fafc;
+  color: #475569;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.thesis-schedule.ready {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
 .signal-diff-list {
   display: grid;
   gap: 8px;

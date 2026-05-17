@@ -131,6 +131,10 @@ export function ScanJourneyPanel() {
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Durum alınamadı');
+        if (pollRef.current) {
+          window.clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
       }
     }
 
@@ -294,8 +298,23 @@ export function ScanJourneyPanel() {
             )}
 
             {!summary && !isFailed && (
-              <div className="muted scan-journey-hint">Akış devam ediyor — her aşama tamamlandıkça yukarıda görünecek.</div>
+              <div className="scan-journey-hint">
+                <p className="muted">Akış devam ediyor — her aşama tamamlandıkça yukarıda görünecek.</p>
+                {error ? (
+                  <button className="button button-secondary" onClick={resetForNew} type="button">
+                    Yeni Tarama
+                  </button>
+                ) : null}
+              </div>
             )}
+
+            {isFailed && !summary ? (
+              <div className="scan-summary-actions">
+                <button className="button button-secondary" onClick={resetForNew} type="button">
+                  Yeni Tarama
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
 

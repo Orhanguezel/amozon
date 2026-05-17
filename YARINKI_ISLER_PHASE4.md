@@ -1,6 +1,6 @@
 # Phase 4 — V1 Stabilizasyon (Multi-Tool Koordinasyon)
 
-Son güncelleme: 2026-05-14 (Track A/B local complete · 83/83 test geçiyor · VPS deploy ve UI E2E bekliyor — SSH timeout)
+Son güncelleme: 2026-05-18 (Phase 4.6 hardening kodu tamamlandı · backend 94/94 + admin 5/5 test geçiyor · backend/admin build yeşil · VPS thesis schema doğrulandı)
 
 > **Hedef:** Sistemi eksiksiz teslim et. Üç ana eksen + iki destek katman + test paketi. Codex / Cursor / Antigravity / Claude paralel çalışır.
 
@@ -12,7 +12,7 @@ Son güncelleme: 2026-05-14 (Track A/B local complete · 83/83 test geçiyor · 
 |-------|-------|--------------|
 | **J1 — Single Journey** | ✅ Tamamlandı | — |
 | **CH — Confidence Honesty** | ✅ Local tamamlandı | — |
-| **TM — Thesis Memory** | ✅ Local tamamlandı; VPS schema bekliyor | — |
+| **TM — Thesis Memory** | ✅ Local + VPS schema tamamlandı | — |
 | **UX2 — Auto Enrichment** | ✅ Local tamamlandı | — |
 | **UX4 — Reliability** | ✅ Local tamamlandı | — |
 | **Test paketi** | ✅ Backend 83 test + frontend smoke/build + UI E2E tamamlandı | — |
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS amazon_theses (
   INDEX idx_amazon_theses_keyword (keyword, marketplace)
 );
 ```
-- [ ] VPS'te tabloyu oluştur (ALTER yerine seed dosyasını güncelle, sonra manuel CREATE — fresh DB'de seed yeterli)
+- [x] VPS'te tabloyu oluştur (ALTER yerine seed dosyasını güncelle, sonra manuel CREATE — fresh DB'de seed yeterli)
 
 **Kabul:** Tablo VPS'te mevcut, `DESCRIBE amazon_theses` doğru kolonları döner.
 
@@ -476,9 +476,9 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 |---|-------|---------|-------|
 | OH.1 | Seller enrichment depth/batching (#4) | 🔴 Yüksek | ✅ Logic+deploy; canlı 25/25 doğrulandı (scheduler %50 hedefe çekiyor) |
 | OH.2 | ASIN mode hata UX clarity (#1) | 🟡 Düşük | ✅ 503 (veri kaynağı) / 400 (geçersiz ASIN) ayrımı, canlı doğrulandı |
-| OH.3 | "Yeni Tarama" buton state reset (#2) | 🟡 Orta | ⏳ Frontend (Codex/Cursor) |
-| OH.4 | Tez re-eval görünürlük + configurable eşik (#3) | 🟡 Orta | ✅ Backend eşik `THESIS_STALE_DAYS` configurable; UI göstergesi ⏳ Codex |
-| OH.5 | Oxylabs usage visibility (#5) | 🟢 İyileştirme | ⏳ Codex (health + UI) |
+| OH.3 | "Yeni Tarama" buton state reset (#2) | 🟡 Orta | ✅ Frontend reset + polling hata çıkışı tamamlandı |
+| OH.4 | Tez re-eval görünürlük + configurable eşik (#3) | 🟡 Orta | ✅ Backend eşik + UI göstergesi + manuel tetik tamamlandı |
+| OH.5 | Oxylabs usage visibility (#5) | 🟢 İyileştirme | ✅ Health + Settings görünürlüğü tamamlandı |
 | OH.6 | MySQL "Out of sort memory" (bonus) | 🟡 Orta | ✅ listScans sorgusu düzeltildi; canlı error log **0** |
 
 ---
@@ -487,11 +487,11 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 
 **Bulgu (canlı):** Oxylabs aktif olmasına rağmen post-Oxylabs tüm `done` scan'lerde `seller_coverage=0`. Kök neden: `scheduler.ts` `SELLER_BATCH_SIZE=5`, 2 saatte 1 job (`LIMIT 1`), post-scan batch `SELLER_POST_SCAN_BATCH=20`. 60-189 ürünlü scan'de coverage matematiksel olarak anlamlı yükselemez.
 
-- [ ] Post-scan seller enrichment batch'ini hedef coverage'a göre boyutlandır (örn. ürün sayısının %X'i veya min 50, configurable env)
-- [ ] `runSellerEnrichment` döngüsünü tek job/5 SKU yerine: düşük coverage'lı job'larda kalan SKU'ları parti parti tamamlayacak şekilde genişlet (paralellik + Oxylabs rate-limit guard)
-- [ ] Retry: geçici Oxylabs hatasında (5xx/timeout) sınırlı backoff'lu yeniden dene; 401/4xx'te dur (kota koruması)
-- [ ] Token/istek tüketimi log + developer note (OH.5 ile bağlantılı)
-- [ ] Env ile ayarlanabilir: `SELLER_BATCH_SIZE`, `SELLER_POST_SCAN_BATCH`, `SELLER_TARGET_COVERAGE`
+- [x] Post-scan seller enrichment batch'ini hedef coverage'a göre boyutlandır (örn. ürün sayısının %X'i veya min 50, configurable env)
+- [x] `runSellerEnrichment` döngüsünü tek job/5 SKU yerine: düşük coverage'lı job'larda kalan SKU'ları parti parti tamamlayacak şekilde genişlet (paralellik + Oxylabs rate-limit guard)
+- [x] Retry: geçici Oxylabs hatasında (5xx/timeout) sınırlı backoff'lu yeniden dene; 401/4xx'te dur (kota koruması)
+- [x] Token/istek tüketimi log + developer note (OH.5 ile bağlantılı)
+- [x] Env ile ayarlanabilir: `SELLER_BATCH_SIZE`, `SELLER_POST_SCAN_BATCH`, `SELLER_TARGET_COVERAGE`
 
 **Dosya:** scheduler.ts, scoring.config.ts (veya env), amazon.types.ts
 **Kabul:** Gerçek veri akışıyla bir scan sonrası seller_coverage anlamlı seviyeye (hedef ≥ %50) ulaşır; skorlama davranışı değişmez.
@@ -500,8 +500,8 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 
 **Bulgu:** Oxylabs erişilemezken ASIN modu generic `asin_resolve_failed/400` → UI "API_ERROR_400". Kök neden Oxylabs'tı; canlıda artık çalışıyor (gerçek ASIN → 200).
 
-- [ ] `resolveAsinToKeyword` Oxylabs hata kodlarını ayır: 401/403/5xx/timeout → "veri kaynağı geçici erişilemez" (503), geçersiz/bulunamayan ASIN → "geçersiz ASIN" (400)
-- [ ] Frontend ASIN scan hata mesajını kullanıcıya açık göster (generic API_ERROR_400 yerine)
+- [x] `resolveAsinToKeyword` Oxylabs hata kodlarını ayır: 401/403/5xx/timeout → "veri kaynağı geçici erişilemez" (503), geçersiz/bulunamayan ASIN → "geçersiz ASIN" (400)
+- [x] Frontend ASIN scan hata mesajını kullanıcıya açık göster (generic API_ERROR_400 yerine)
 
 **Dosya:** asin-resolver.ts, server.ts, (UI: ScanJourneyPanel/scan formu)
 **Kabul:** Oxylabs-down'da kullanıcı "veri kaynağı geçici erişilemez" görür; geçersiz ASIN ayrı mesaj.
@@ -510,8 +510,8 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 
 **Bulgu:** Tüm scan'ler 401 ile düşerken buton disabled kalıyor, refresh sonrası düzeliyor — hata/poll path'te state sıfırlanmıyor.
 
-- [ ] Scan başlatma butonu: job `failed`/`done` olduğunda veya hata yakalandığında disabled state mutlaka sıfırlanır
-- [ ] Polling hata branch'inde de loading=false set edilir (finally bloğu)
+- [x] Scan başlatma butonu: job `failed`/`done` olduğunda veya hata yakalandığında disabled state mutlaka sıfırlanır
+- [x] Polling hata branch'inde de loading=false set edilir (finally bloğu)
 
 **Dosya:** ScanJourneyPanel.tsx / ilgili scan formu
 **Kabul:** Scan başarısız olsa bile buton refresh gerektirmeden tekrar aktif olur.
@@ -520,17 +520,17 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 
 **Bulgu:** Re-eval `last_evaluated_at < NOW()-7gün` + günde 1 kez; tezler 3 günlük olduğu için tetiklenmedi (tasarım gereği, ama operatör göremiyor → statik algısı).
 
-- [ ] `THESIS_STALE_DAYS` env ile configurable (default 7)
-- [ ] Tez kartında "sonraki otomatik değerlendirme ~X gün sonra" veya "değerlendirmeye hazır" göstergesi
-- [ ] `/theses` background refresh / manuel "Şimdi Değerlendir" tetikleyici görünür
+- [x] `THESIS_STALE_DAYS` env ile configurable (default 7)
+- [x] Tez kartında "sonraki otomatik değerlendirme ~X gün sonra" veya "değerlendirmeye hazır" göstergesi
+- [x] `/theses` background refresh / manuel "Şimdi Değerlendir" tetikleyici görünür
 
 **Dosya:** scheduler.ts, ThesesPanel.tsx, server.ts
 **Kabul:** Operatör tezin ne zaman yeniden değerlendirileceğini görür; eşik ayarlanabilir.
 
 ### OH.5 — Oxylabs Usage Visibility [💻 Codex, architect 🧠 Claude]
 
-- [ ] `/api/health`'e `oxylabs` bloğu: tahmini tüketim (scan başına ortalama istek), 24h istek sayısı, cache-hit oranı (varsa)
-- [ ] Settings/health kartına Oxylabs kullanım göstergesi (Keepa budget gibi)
+- [x] `/api/health`'e `oxylabs` bloğu: tahmini tüketim (scan başına ortalama istek), 24h istek sayısı, cache-hit oranı (varsa)
+- [x] Settings/health kartına Oxylabs kullanım göstergesi (Keepa budget gibi)
 
 **Dosya:** server.ts, scheduler.ts, SettingsPanel.tsx
 **Kabul:** Operatör Oxylabs kullanımını panelden görür.
@@ -539,9 +539,9 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 
 **Bulgu:** `amozon-api-error.log` sürekli "Out of sort memory" basıyor; `sort_buffer_size=256KB` default. Bir `ORDER BY` (muhtemelen listScans/theses, JSON/TEXT kolon) buffer'ı aşıyor; #3 statik davranışını da tetikliyor olabilir.
 
-- [ ] Hatayı üreten sorguyu tespit et (slow/general log veya kod taraması — ORDER BY JSON/TEXT)
-- [ ] Çözüm: ORDER BY'ı indexli skalar kolona çevir (örn. created_at) veya gerekli kolonu indexle; gerekirse VPS `sort_buffer_size` makul artır
-- [ ] Error log temiz olmalı (spam durur)
+- [x] Hatayı üreten sorguyu tespit et (slow/general log veya kod taraması — ORDER BY JSON/TEXT)
+- [x] Çözüm: ORDER BY'ı indexli skalar kolona çevir (örn. created_at) veya gerekli kolonu indexle; gerekirse VPS `sort_buffer_size` makul artır
+- [x] Error log temiz olmalı (spam durur)
 
 **Dosya:** server.ts (ilgili sorgu), gerekirse MySQL config
 **Kabul:** Error log "Out of sort memory" üretmez; ilgili liste/sorgu sağlıklı döner.
