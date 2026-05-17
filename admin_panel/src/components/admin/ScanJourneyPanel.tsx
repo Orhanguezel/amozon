@@ -41,6 +41,22 @@ type ProgressResponse = {
   };
 };
 
+type ScanStartResponse = {
+  jobId: string;
+  keyword?: string;
+  seed_asin?: string | null;
+  cached_available?: boolean;
+  age_minutes?: number;
+  ttl_minutes?: number;
+  message?: string;
+};
+
+type QuotaResponse = {
+  keepa: { configured: boolean; budget_total: number; budget_remaining: number; tokens_used_today: number };
+  oxylabs: { configured: boolean; average_requests_per_scan: number; estimated_requests_last_24h: number };
+  cache: { ttl_minutes: number };
+};
+
 const MARKETPLACE_OPTIONS = ['com', 'co.uk', 'de', 'fr', 'es', 'it', 'com.tr'];
 
 const ASIN_REGEX = /^(B0[A-Z0-9]{8}|[0-9]{10})$/;
@@ -88,9 +104,21 @@ export function ScanJourneyPanel() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [thesisLoading, setThesisLoading] = useState(false);
+  const [cachedPrompt, setCachedPrompt] = useState<ScanStartResponse | null>(null);
+  const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const pollRef = useRef<number | null>(null);
 
-  async function startScan() {
+  async function loadQuota() {
+    try {
+      setQuota(await apiGet<QuotaResponse>('/api/quota'));
+    } catch {
+      // kota görünürlüğü best-effort; scan akışını bloklamaz
+    }
+  }
+
+  useEffect(() => { loadQuota(); }, []);
+
+  async function startScan(force = false) {
     const trimmed = keyword.trim();
     if (!trimmed) {
       setError('Anahtar kelime veya ASIN gerekli');
@@ -99,18 +127,35 @@ export function ScanJourneyPanel() {
     setStarting(true);
     setError(null);
     setProgress(null);
+    if (force) setCachedPrompt(null);
     try {
       const isAsinInput = looksLikeAsin(trimmed);
-      const payload = isAsinInput
-        ? { asin: trimmed.toUpperCase(), marketplace }
-        : { keyword: trimmed, marketplace, auto_add: true };
-      const result = await apiPost<{ jobId: string; keyword?: string; seed_asin?: string | null }>('/api/scans', payload);
+      const payload = {
+        ...(isAsinInput
+          ? { asin: trimmed.toUpperCase(), marketplace }
+          : { keyword: trimmed, marketplace, auto_add: true }),
+        ...(force ? { force: true } : {}),
+      };
+      const result = await apiPost<ScanStartResponse>('/api/scans', payload);
+      if (result.cached_available && !force) {
+        // OH.7 — Kota koruması: operatöre seçim sun (cached aç / yeniden tara).
+        setCachedPrompt(result);
+        return;
+      }
+      setCachedPrompt(null);
       setJobId(result.jobId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tarama başlatılamadı');
     } finally {
       setStarting(false);
     }
+  }
+
+  function openCachedResult() {
+    if (!cachedPrompt) return;
+    const id = cachedPrompt.jobId;
+    setCachedPrompt(null);
+    setJobId(id);
   }
 
   useEffect(() => {
@@ -127,6 +172,7 @@ export function ScanJourneyPanel() {
             window.clearInterval(pollRef.current);
             pollRef.current = null;
           }
+          loadQuota(); // OH.8 — scan sonrası güncel tüketim
         }
       } catch (err) {
         if (cancelled) return;
@@ -152,6 +198,8 @@ export function ScanJourneyPanel() {
     setProgress(null);
     setError(null);
     setKeyword('');
+    setCachedPrompt(null);
+    loadQuota();
   }
 
   async function activateThesis() {
@@ -183,6 +231,29 @@ export function ScanJourneyPanel() {
       <div className="panel-body">
         {!jobId ? (
           <>
+            {quota && (
+              <div className="quota-card" title="Scan öncesi/sonrası kota ve maliyet görünürlüğü">
+                <span><b>Keepa:</b> {quota.keepa.budget_remaining}/{quota.keepa.budget_total} kalan ({quota.keepa.tokens_used_today} kullanıldı)</span>
+                <span><b>Oxylabs:</b> ~{quota.oxylabs.average_requests_per_scan || '–'} istek/scan · 24s: {quota.oxylabs.estimated_requests_last_24h}</span>
+                <span><b>Cache:</b> {quota.cache.ttl_minutes} dk yeniden-kullanım</span>
+              </div>
+            )}
+            {cachedPrompt && (
+              <div className="cached-prompt">
+                <p>{cachedPrompt.message || `Bu keyword için ${cachedPrompt.age_minutes ?? '?'} dk önce tamamlanmış bir tarama var.`}</p>
+                <div className="cached-prompt-actions">
+                  <button className="button" type="button" onClick={openCachedResult}>
+                    Mevcut sonucu aç (kota harcanmaz)
+                  </button>
+                  <button className="button button-secondary" type="button" disabled={starting} onClick={() => startScan(true)}>
+                    Yine de yeniden tara
+                  </button>
+                  <button className="button button-ghost" type="button" onClick={() => setCachedPrompt(null)}>
+                    Vazgeç
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="scan-journey-form">
               <input
                 className="input"
@@ -195,7 +266,7 @@ export function ScanJourneyPanel() {
               <select className="select" value={marketplace} onChange={(e) => setMarketplace(e.target.value)}>
                 {MARKETPLACE_OPTIONS.map((mp) => <option key={mp} value={mp}>amazon.{mp}</option>)}
               </select>
-              <button className="button" onClick={startScan} disabled={starting} type="button">
+              <button className="button" onClick={() => startScan()} disabled={starting} type="button">
                 <Play size={16} />
                 {starting ? 'Başlatılıyor' : 'Başlat'}
               </button>
