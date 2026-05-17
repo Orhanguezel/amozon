@@ -474,12 +474,12 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 
 | # | Eksen | Öncelik | Durum |
 |---|-------|---------|-------|
-| OH.1 | Seller enrichment depth/batching (#4) | 🔴 Yüksek (acceptance etkiler) | ⏳ Bekliyor |
-| OH.2 | ASIN mode hata UX clarity (#1) | 🟡 Düşük (kök çözüldü) | ⏳ Bekliyor |
-| OH.3 | "Yeni Tarama" buton state reset (#2) | 🟡 Orta | ⏳ Bekliyor |
-| OH.4 | Tez re-eval görünürlük + configurable eşik (#3) | 🟡 Orta | ⏳ Bekliyor |
-| OH.5 | Oxylabs usage visibility (#5) | 🟢 İyileştirme | ⏳ Bekliyor |
-| OH.6 | MySQL "Out of sort memory" sorgu/buffer (bonus) | 🟡 Orta (log gürültüsü + #3 tetikleyebilir) | ⏳ Bekliyor |
+| OH.1 | Seller enrichment depth/batching (#4) | 🔴 Yüksek | ✅ Logic+deploy; canlı 25/25 doğrulandı (scheduler %50 hedefe çekiyor) |
+| OH.2 | ASIN mode hata UX clarity (#1) | 🟡 Düşük | ✅ 503 (veri kaynağı) / 400 (geçersiz ASIN) ayrımı, canlı doğrulandı |
+| OH.3 | "Yeni Tarama" buton state reset (#2) | 🟡 Orta | ⏳ Frontend (Codex/Cursor) |
+| OH.4 | Tez re-eval görünürlük + configurable eşik (#3) | 🟡 Orta | ✅ Backend eşik `THESIS_STALE_DAYS` configurable; UI göstergesi ⏳ Codex |
+| OH.5 | Oxylabs usage visibility (#5) | 🟢 İyileştirme | ⏳ Codex (health + UI) |
+| OH.6 | MySQL "Out of sort memory" (bonus) | 🟡 Orta | ✅ listScans sorgusu düzeltildi; canlı error log **0** |
 
 ---
 
