@@ -557,7 +557,33 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 4. ✅ `bun test` 94/0 + admin 5/0, build temiz, skorlama davranışı değişmedi
 5. ⏳ **Tek kalan:** Müşteri final seller depth / sniper validation testlerini gerçek veriyle doğrular → V1 acceptance + transfer planı
 
-**Durum (2026-05-18):** Phase 4.6 backend+frontend hardening tamamlandı, main'e push edildi, VPS canlı doğrulandı. Geliştirme tarafında açık iş YOK. Teslim için tek bekleyen: müşterinin gerçek veriyle final validation'ı (kod değil, müşteri aksiyonu).
+**Durum (2026-05-18):** Phase 4.6 backend+frontend hardening tamamlandı, main'e push edildi, VPS canlı doğrulandı.
+
+---
+
+### Phase 4.7 — Cache & Kota Görünürlüğü (V1 Kapanış Blokörü, Müşteri Final Test Bulgusu)
+
+Müşteri final testte 2 operasyonel maliyet/şeffaflık bulgusu bildirdi; V1 kapanışından önce çözülmesini istedi (seller depth V1.5'te kalabilir). Anayasal: caching + görünürlük; skor mantığına dokunmaz.
+
+| # | Madde | Durum |
+|---|-------|-------|
+| OH.7 | Scan cache reuse ("cached kullan / yeniden tara") | ✅ Backend canlı doğrulandı; UI seçim modalı ⏳ Codex |
+| OH.8 | Kota/maliyet görünürlüğü (`/api/quota`, scan öncesi/sonrası) | ✅ Backend canlı doğrulandı; UI panel ⏳ Codex |
+
+#### OH.7 — Scan Cache Reuse [🧠 Claude backend, 💻 Codex UI]
+- [x] POST `/api/scans`: aynı keyword+marketplace için `SCAN_CACHE_TTL_MIN` (env, default 360dk) içinde `done` scan varsa yeniden tarama yapma; `cached_available:true` + jobId + age + mesaj döndür
+- [x] `force:true` ile bypass (yeniden tara)
+- [x] Canlı doğrulandı: cached → mevcut jobId, force → yeni job
+- [ ] UI: "X dk önce tarandı — Cached sonucu aç / Yeniden tara" seçim modalı (Codex/Cursor)
+
+#### OH.8 — Kota/Maliyet Görünürlüğü [🧠 Claude backend, 💻 Codex UI]
+- [x] `GET /api/quota`: Keepa kalan/toplam/kullanılan, Oxylabs kullanım/tahmin, scan başı ~istek, cache TTL/istatistik
+- [x] Canlı doğrulandı (Keepa 90/600, Oxylabs 24.1/scan)
+- [ ] UI: scan formu üstünde "scan öncesi kota" + scan sonrası "bu scan tüketimi / cache hit-miss" göstergesi (Codex/Cursor)
+
+**Codex/Cursor brief:** `/api/scans` POST artık `cached_available:true` dönebilir → scan formunda modal/uyarı: "Bu keyword X dk önce tarandı. [Cached sonucu aç] [Yeniden tara]". "Yeniden tara" → aynı POST'u `force:true` ile çağır. Ayrıca `GET /api/quota` verisini scan sayfası üstünde küçük kart olarak göster (Keepa kalan, Oxylabs ort. istek/scan, cache TTL); scan bitince güncelle.
+
+**Durum:** Phase 4.6 + 4.7 **backend** tamamlandı ve canlı doğrulandı. Açık geliştirme: yalnızca OH.7/OH.8 **frontend** (Codex/Cursor — cache seçim modalı + kota kartı). Teslim için: bu UI + müşterinin gerçek veriyle final validation'ı.
 
 ---
 
