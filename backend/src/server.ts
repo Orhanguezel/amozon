@@ -1288,6 +1288,61 @@ async function getHealth() {
   };
 }
 
+// OH.8 — Kota/maliyet görünürlüğü: operatör scan öncesi/sonrası tüketimi görür.
+// Salt-okuma; skor/karar mantığına dokunmaz.
+async function getQuota() {
+  const keepaUsage = await getKeepaUsage();
+  const today = keepaUsage.today as Record<string, unknown> | null;
+  const queue = keepaUsage.queue as Record<string, unknown>;
+  const [oxRows] = await pool.execute(
+    `SELECT
+       COUNT(DISTINCT j.id) AS scans_24h,
+       COUNT(p.id) AS product_rows_24h,
+       SUM(CASE WHEN p.seller_name IS NOT NULL AND p.seller_name <> '' THEN 1 ELSE 0 END) AS seller_rows_24h
+     FROM amazon_scan_jobs j
+     LEFT JOIN amazon_products p ON p.job_id = j.id
+     WHERE j.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+  );
+  const [cacheRows] = await pool.execute(
+    `SELECT
+       COUNT(*) AS total_24h,
+       SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done_24h
+     FROM amazon_scan_jobs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+  );
+  const ox = (oxRows as Array<Record<string, unknown>>)[0] ?? {};
+  const scans24h = Number(ox.scans_24h || 0);
+  const sellerRows24h = Number(ox.seller_rows_24h || 0);
+  const estReq24h = scans24h + sellerRows24h;
+  const avgPerScan = scans24h > 0 ? Number((estReq24h / scans24h).toFixed(1)) : 0;
+  const cache = (cacheRows as Array<Record<string, unknown>>)[0] ?? {};
+
+  return {
+    keepa: {
+      configured: isKeepaConfigured(),
+      budget_total: today ? Number(today.token_budget || 0) : keepaUsage.localDailyBudget,
+      budget_remaining: today ? Number(today.remaining || 0) : keepaUsage.localDailyBudget,
+      tokens_used_today: today ? Number(today.tokens_used || 0) : 0,
+      queue_pending: Number(queue.pending || 0),
+    },
+    oxylabs: {
+      configured: Boolean(env.OXYLABS_USERNAME && env.OXYLABS_PASSWORD),
+      estimated_requests_last_24h: estReq24h,
+      average_requests_per_scan: avgPerScan,
+      seller_detail_rows_last_24h: sellerRows24h,
+    },
+    per_scan_estimate: {
+      oxylabs_requests: avgPerScan || null,
+      note: 'Tahmini değer son 24s ortalamasından türetilir; ilk taramalarda boş olabilir.',
+    },
+    cache: {
+      ttl_minutes: env.SCAN_CACHE_TTL_MIN,
+      scans_last_24h: Number(cache.total_24h || 0),
+      done_last_24h: Number(cache.done_24h || 0),
+      note: 'Aynı keyword/marketplace için TTL içinde tamamlanmış tarama varsa yeniden taramadan önce seçim sunulur (kota koruması).',
+    },
+  };
+}
+
 function normalizePriority(value: unknown) {
   const priority = String(value || 'normal').trim().toLowerCase();
   return ['low', 'normal', 'high', 'critical'].includes(priority) ? priority : 'normal';
@@ -1370,6 +1425,10 @@ async function handleRequest(request: Request): Promise<Response> {
   }
   if (path === '/api/health' && request.method === 'GET') {
     return json(await getHealth() as JsonValue);
+  }
+
+  if (path === '/api/quota' && request.method === 'GET') {
+    return json(await getQuota() as JsonValue);
   }
   if (path === '/api/uploads' && request.method === 'POST') {
     const upload = await saveUploadedImage(request);
@@ -1543,9 +1602,42 @@ async function handleRequest(request: Request): Promise<Response> {
       );
     }
 
+    // OH.7 — Kota koruması: aynı keyword+marketplace için TTL içinde tamamlanmış
+    // scan varsa yeniden tarama yapma; operatöre "cached kullan / yeniden tara"
+    // seçeneği sun. force:true ile bypass. Veri-akışı katmanı; skor değişmez.
+    const force = Boolean(body.force);
+    if (!force) {
+      const [cacheRows] = await pool.execute(
+        `SELECT id, created_at,
+                TIMESTAMPDIFF(MINUTE, created_at, NOW()) AS age_min
+         FROM amazon_scan_jobs
+         WHERE keyword = ? AND marketplace = ? AND status = 'done'
+           AND created_at >= DATE_SUB(NOW(), INTERVAL ${env.SCAN_CACHE_TTL_MIN} MINUTE)
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [keyword, marketplace],
+      );
+      const cached = (cacheRows as Array<{ id: string; created_at: unknown; age_min: number | string }>)[0];
+      if (cached) {
+        const ageMin = Number(cached.age_min) || 0;
+        return json({
+          cached_available: true,
+          jobId: cached.id,
+          keyword,
+          marketplace,
+          seed_asin: seedAsin,
+          seed_asin_title: seedAsinTitle,
+          cached_at: cached.created_at,
+          age_minutes: ageMin,
+          ttl_minutes: env.SCAN_CACHE_TTL_MIN,
+          message: `Bu keyword için ${ageMin} dk önce tamamlanmış bir tarama var. Kotayı korumak için mevcut sonucu kullanabilir veya yeniden tarayabilirsiniz.`,
+        });
+      }
+    }
+
     const job = await createJob(keyword, marketplace);
     runInBackground(job.id);
-    return json({ jobId: job.id, keyword, seed_asin: seedAsin, seed_asin_title: seedAsinTitle });
+    return json({ jobId: job.id, keyword, seed_asin: seedAsin, seed_asin_title: seedAsinTitle, cached_available: false });
   }
 
   const scanRetryMatch = path.match(/^\/api\/scans\/([^/]+)\/retry$/);

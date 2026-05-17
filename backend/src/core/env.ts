@@ -31,6 +31,9 @@ export const env = {
   SELLER_TARGET_COVERAGE: parseEnvFloat(process.env.SELLER_TARGET_COVERAGE, 0.5),
   SELLER_MAX_RETRIES: parseEnvInt(process.env.SELLER_MAX_RETRIES, 1),
   THESIS_STALE_DAYS: parseEnvInt(process.env.THESIS_STALE_DAYS, 7),
+  // OH.7 — Aynı keyword/marketplace için bu süre içinde tamamlanmış scan varsa
+  // yeniden tarama yapmadan cache reuse seçeneği sunulur (kota koruması).
+  SCAN_CACHE_TTL_MIN: parseEnvInt(process.env.SCAN_CACHE_TTL_MIN, 360),
 };
 
 function parseEnvFloat(value: string | undefined, fallback: number) {
