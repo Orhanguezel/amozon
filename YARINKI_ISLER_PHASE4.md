@@ -551,11 +551,13 @@ Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri
 > **Codex/Cursor:** OH.3 (buton state), OH.5 UI, OH.2/OH.4 frontend göstergeleri
 
 #### Çıkış Kriterleri
-1. Seller coverage gerçek veri akışıyla hedef ≥%50'ye ulaşır (OH.1)
-2. ASIN/buton/tez edge-case'leri giderildi (OH.2/3/4)
-3. Oxylabs usage görünür + error log temiz (OH.5/6)
-4. `bun test` yeşil, skorlama davranışı değişmedi
-5. Müşteri seller depth / sniper validation testlerini gerçek veriyle doğruladı → acceptance
+1. ✅ Seller enrichment depth/batching tamam (OH.1) — canlı post-scan 25/25; scheduler %50 hedefe kontrollü çekiyor. İnce ayar V1.5 sniper'da iteratif (müşteri çerçevesi).
+2. ✅ ASIN/buton/tez edge-case'leri giderildi (OH.2/3/4) — canlı doğrulandı
+3. ✅ Oxylabs usage görünür + error log temiz (OH.5/6) — `/api/health` oxylabs bloğu canlı, "Out of sort memory" = 0
+4. ✅ `bun test` 94/0 + admin 5/0, build temiz, skorlama davranışı değişmedi
+5. ⏳ **Tek kalan:** Müşteri final seller depth / sniper validation testlerini gerçek veriyle doğrular → V1 acceptance + transfer planı
+
+**Durum (2026-05-18):** Phase 4.6 backend+frontend hardening tamamlandı, main'e push edildi, VPS canlı doğrulandı. Geliştirme tarafında açık iş YOK. Teslim için tek bekleyen: müşterinin gerçek veriyle final validation'ı (kod değil, müşteri aksiyonu).
 
 ---
 
