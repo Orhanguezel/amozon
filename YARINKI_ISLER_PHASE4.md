@@ -464,6 +464,101 @@ Son güncelleme: 2026-05-15 (Müşteri V1 – Bedrock fazını teknik olarak KAB
 
 ---
 
+## Phase 4.6 — Operational Hardening (Oxylabs Sonrası Canlı Bulgular)
+
+Son güncelleme: 2026-05-17 (Oxylabs aboneliği aktif edildikten sonra müşteri canlı testlerinde 5 operational edge-case bildirdi + Claude log incelemesinde 1 bonus DB bulgusu. "V1 karakter problemi değil" — canlı kullanım hardening başlıkları.)
+
+> **Anayasal kural:** Skorlama/confidence/coverage gate mantığına dokunulmaz. Bu tur veri-akışı derinliği, durum yönetimi ve görünürlük; V1 dürüst karakteri korunur. Her madde sonunda `bun test` yeşil.
+
+### Genel Durum
+
+| # | Eksen | Öncelik | Durum |
+|---|-------|---------|-------|
+| OH.1 | Seller enrichment depth/batching (#4) | 🔴 Yüksek (acceptance etkiler) | ⏳ Bekliyor |
+| OH.2 | ASIN mode hata UX clarity (#1) | 🟡 Düşük (kök çözüldü) | ⏳ Bekliyor |
+| OH.3 | "Yeni Tarama" buton state reset (#2) | 🟡 Orta | ⏳ Bekliyor |
+| OH.4 | Tez re-eval görünürlük + configurable eşik (#3) | 🟡 Orta | ⏳ Bekliyor |
+| OH.5 | Oxylabs usage visibility (#5) | 🟢 İyileştirme | ⏳ Bekliyor |
+| OH.6 | MySQL "Out of sort memory" sorgu/buffer (bonus) | 🟡 Orta (log gürültüsü + #3 tetikleyebilir) | ⏳ Bekliyor |
+
+---
+
+### OH.1 — Seller Enrichment Depth / Batching [🧠 Claude]
+
+**Bulgu (canlı):** Oxylabs aktif olmasına rağmen post-Oxylabs tüm `done` scan'lerde `seller_coverage=0`. Kök neden: `scheduler.ts` `SELLER_BATCH_SIZE=5`, 2 saatte 1 job (`LIMIT 1`), post-scan batch `SELLER_POST_SCAN_BATCH=20`. 60-189 ürünlü scan'de coverage matematiksel olarak anlamlı yükselemez.
+
+- [ ] Post-scan seller enrichment batch'ini hedef coverage'a göre boyutlandır (örn. ürün sayısının %X'i veya min 50, configurable env)
+- [ ] `runSellerEnrichment` döngüsünü tek job/5 SKU yerine: düşük coverage'lı job'larda kalan SKU'ları parti parti tamamlayacak şekilde genişlet (paralellik + Oxylabs rate-limit guard)
+- [ ] Retry: geçici Oxylabs hatasında (5xx/timeout) sınırlı backoff'lu yeniden dene; 401/4xx'te dur (kota koruması)
+- [ ] Token/istek tüketimi log + developer note (OH.5 ile bağlantılı)
+- [ ] Env ile ayarlanabilir: `SELLER_BATCH_SIZE`, `SELLER_POST_SCAN_BATCH`, `SELLER_TARGET_COVERAGE`
+
+**Dosya:** scheduler.ts, scoring.config.ts (veya env), amazon.types.ts
+**Kabul:** Gerçek veri akışıyla bir scan sonrası seller_coverage anlamlı seviyeye (hedef ≥ %50) ulaşır; skorlama davranışı değişmez.
+
+### OH.2 — ASIN Mode Hata UX Clarity [🧠 Claude]
+
+**Bulgu:** Oxylabs erişilemezken ASIN modu generic `asin_resolve_failed/400` → UI "API_ERROR_400". Kök neden Oxylabs'tı; canlıda artık çalışıyor (gerçek ASIN → 200).
+
+- [ ] `resolveAsinToKeyword` Oxylabs hata kodlarını ayır: 401/403/5xx/timeout → "veri kaynağı geçici erişilemez" (503), geçersiz/bulunamayan ASIN → "geçersiz ASIN" (400)
+- [ ] Frontend ASIN scan hata mesajını kullanıcıya açık göster (generic API_ERROR_400 yerine)
+
+**Dosya:** asin-resolver.ts, server.ts, (UI: ScanJourneyPanel/scan formu)
+**Kabul:** Oxylabs-down'da kullanıcı "veri kaynağı geçici erişilemez" görür; geçersiz ASIN ayrı mesaj.
+
+### OH.3 — "Yeni Tarama" Buton State Reset [💻 Codex/Cursor, review 🧠 Claude]
+
+**Bulgu:** Tüm scan'ler 401 ile düşerken buton disabled kalıyor, refresh sonrası düzeliyor — hata/poll path'te state sıfırlanmıyor.
+
+- [ ] Scan başlatma butonu: job `failed`/`done` olduğunda veya hata yakalandığında disabled state mutlaka sıfırlanır
+- [ ] Polling hata branch'inde de loading=false set edilir (finally bloğu)
+
+**Dosya:** ScanJourneyPanel.tsx / ilgili scan formu
+**Kabul:** Scan başarısız olsa bile buton refresh gerektirmeden tekrar aktif olur.
+
+### OH.4 — Tez Re-eval Görünürlük + Configurable Eşik [🧠 Claude]
+
+**Bulgu:** Re-eval `last_evaluated_at < NOW()-7gün` + günde 1 kez; tezler 3 günlük olduğu için tetiklenmedi (tasarım gereği, ama operatör göremiyor → statik algısı).
+
+- [ ] `THESIS_STALE_DAYS` env ile configurable (default 7)
+- [ ] Tez kartında "sonraki otomatik değerlendirme ~X gün sonra" veya "değerlendirmeye hazır" göstergesi
+- [ ] `/theses` background refresh / manuel "Şimdi Değerlendir" tetikleyici görünür
+
+**Dosya:** scheduler.ts, ThesesPanel.tsx, server.ts
+**Kabul:** Operatör tezin ne zaman yeniden değerlendirileceğini görür; eşik ayarlanabilir.
+
+### OH.5 — Oxylabs Usage Visibility [💻 Codex, architect 🧠 Claude]
+
+- [ ] `/api/health`'e `oxylabs` bloğu: tahmini tüketim (scan başına ortalama istek), 24h istek sayısı, cache-hit oranı (varsa)
+- [ ] Settings/health kartına Oxylabs kullanım göstergesi (Keepa budget gibi)
+
+**Dosya:** server.ts, scheduler.ts, SettingsPanel.tsx
+**Kabul:** Operatör Oxylabs kullanımını panelden görür.
+
+### OH.6 — MySQL "Out of sort memory" [🧠 Claude]
+
+**Bulgu:** `amozon-api-error.log` sürekli "Out of sort memory" basıyor; `sort_buffer_size=256KB` default. Bir `ORDER BY` (muhtemelen listScans/theses, JSON/TEXT kolon) buffer'ı aşıyor; #3 statik davranışını da tetikliyor olabilir.
+
+- [ ] Hatayı üreten sorguyu tespit et (slow/general log veya kod taraması — ORDER BY JSON/TEXT)
+- [ ] Çözüm: ORDER BY'ı indexli skalar kolona çevir (örn. created_at) veya gerekli kolonu indexle; gerekirse VPS `sort_buffer_size` makul artır
+- [ ] Error log temiz olmalı (spam durur)
+
+**Dosya:** server.ts (ilgili sorgu), gerekirse MySQL config
+**Kabul:** Error log "Out of sort memory" üretmez; ilgili liste/sorgu sağlıklı döner.
+
+#### Tool Brief'leri
+> **Claude:** OH.1 (enrichment logic), OH.2 (resolver hata ayrımı), OH.4 (scheduler/eşik), OH.6 (sorgu fix) — skor mantığına dokunmaz
+> **Codex/Cursor:** OH.3 (buton state), OH.5 UI, OH.2/OH.4 frontend göstergeleri
+
+#### Çıkış Kriterleri
+1. Seller coverage gerçek veri akışıyla hedef ≥%50'ye ulaşır (OH.1)
+2. ASIN/buton/tez edge-case'leri giderildi (OH.2/3/4)
+3. Oxylabs usage görünür + error log temiz (OH.5/6)
+4. `bun test` yeşil, skorlama davranışı değişmedi
+5. Müşteri seller depth / sniper validation testlerini gerçek veriyle doğruladı → acceptance
+
+---
+
 ## Phase 5 (Ertelenen) — Threat Intelligence
 
 Phase 4 stabilizasyon sonrası, kullanıcı talimatıyla başlanır:

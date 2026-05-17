@@ -229,16 +229,24 @@ async function listScans(options: { limit?: number; offset?: number } = {}) {
        )
      )`;
 
+  // OH.6 — Önce ince tabloda (JSON yok) sırala+sayfala, sonra ağır JSON
+  // kolonlarını yalnızca sayfadaki satırlara join et. Aksi halde MySQL
+  // büyük decision_surface/data_quality JSON'larını filesort'a alıp
+  // sort_buffer'ı taşırıyor ("Out of sort memory"). Davranış aynıdır.
   const [rows] = await pool.execute(
     `SELECT
        asj.id, asj.keyword, asj.marketplace, asj.status, asj.data_points, asj.error_msg,
        asj.created_at, asj.finished_at,
        ars.composite_score, ars.decision, ars.decision_surface, ars.data_quality
-     FROM amazon_scan_jobs asj
+     FROM (
+       SELECT id, keyword, marketplace, status, data_points, error_msg, created_at, finished_at
+       FROM amazon_scan_jobs asj
+       ${filterSql}
+       ORDER BY asj.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}
+     ) asj
      LEFT JOIN amazon_risk_scores ars ON ars.job_id = asj.id
-     ${filterSql}
-     ORDER BY asj.created_at DESC
-     LIMIT ${limit} OFFSET ${offset}`,
+     ORDER BY asj.created_at DESC`,
   );
   const [countRows] = await pool.execute(
     `SELECT COUNT(*) AS total FROM amazon_scan_jobs asj ${filterSql}`,
@@ -1489,7 +1497,18 @@ async function handleRequest(request: Request): Promise<Response> {
         seedAsinTitle = resolved.title;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'ASIN_RESOLVE_FAILED';
-        return json({ error: 'asin_resolve_failed', detail: msg }, { status: 400 });
+        // OH.2 — Oxylabs erişim/kota hatasını geçersiz ASIN'den ayır.
+        const dataSourceDown = /_(401|403|408|429|5\d\d)$|NOT_CONFIGURED|TIMEOUT|ECONNRESET|ECONNREFUSED/i.test(msg);
+        if (dataSourceDown) {
+          return json(
+            { error: 'data_source_unavailable', detail: msg, message: 'Veri kaynağı (Oxylabs) şu an erişilemez; lütfen biraz sonra tekrar deneyin.' },
+            { status: 503 },
+          );
+        }
+        return json(
+          { error: 'asin_resolve_failed', detail: msg, message: 'ASIN çözümlenemedi; ASIN geçerli ve ürün erişilebilir olmalı.' },
+          { status: 400 },
+        );
       }
     }
 

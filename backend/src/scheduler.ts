@@ -12,8 +12,14 @@ const KEEPA_BATCH_SIZE = 20;
 
 const SELLER_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 const SELLER_INITIAL_DELAY_MS = 60_000;         // 1 min after server start
-const SELLER_BATCH_SIZE = 5;
-const SELLER_POST_SCAN_BATCH = 20;              // immediate post-scan enrichment batch
+// OH.1 — env-configurable; her 2 saatte düşük coverage'lı job parça parça
+// hedefe çekilir (Micro plan maliyeti için tek seferde patlama yok).
+const SELLER_BATCH_SIZE = env.SELLER_BATCH_SIZE;
+const SELLER_POST_SCAN_BATCH = env.SELLER_POST_SCAN_BATCH;
+const SELLER_TARGET_COVERAGE = env.SELLER_TARGET_COVERAGE;
+const SELLER_MAX_RETRIES = env.SELLER_MAX_RETRIES;
+const TRANSIENT_ERR = /\b(429|5\d\d|timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up)\b/i;
+const AUTH_ERR = /\b(401|403)\b/;
 const DAILY_SUMMARY_INTERVAL_MS = 60 * 60 * 1000;
 const AUTO_RETRY_INTERVAL_MS = 60 * 60 * 1000;
 const THESIS_EVALUATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -39,7 +45,28 @@ async function runKeepaProcessor() {
   }
 }
 
-export async function processSellerEnrichmentForJob(jobId: string, marketplace: string, limit = SELLER_BATCH_SIZE): Promise<{ updated: number; attempted: number }> {
+async function scrapeWithRetry(
+  args: { asin?: string; productUrl: string; marketplace: string },
+  marketplace: string,
+): Promise<{ detail: Awaited<ReturnType<typeof scrapeAmazonProductDetail>> | null; authError: boolean }> {
+  for (let attempt = 0; attempt <= SELLER_MAX_RETRIES; attempt += 1) {
+    try {
+      const detail = await scrapeAmazonProductDetail(args, marketplace);
+      return { detail, authError: false };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (AUTH_ERR.test(msg)) return { detail: null, authError: true }; // kota/kimlik — dur
+      if (attempt < SELLER_MAX_RETRIES && TRANSIENT_ERR.test(msg)) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1))); // sınırlı backoff
+        continue;
+      }
+      return { detail: null, authError: false }; // kalıcı/per-product — atla
+    }
+  }
+  return { detail: null, authError: false };
+}
+
+export async function processSellerEnrichmentForJob(jobId: string, marketplace: string, limit = SELLER_BATCH_SIZE): Promise<{ updated: number; attempted: number; aborted: boolean }> {
   const [productRows] = await pool.execute(
     `SELECT id, asin, product_url, seller_name, brand
      FROM amazon_products
@@ -51,32 +78,36 @@ export async function processSellerEnrichmentForJob(jobId: string, marketplace: 
     [jobId],
   );
   const products = productRows as Array<{ id: string; asin: string | null; product_url: string; seller_name: string | null; brand: string | null }>;
-  if (!products.length) return { updated: 0, attempted: 0 };
+  if (!products.length) return { updated: 0, attempted: 0, aborted: false };
 
   let updated = 0;
+  let attempted = 0;
   for (const product of products) {
-    try {
-      const detail = await scrapeAmazonProductDetail(
-        { asin: product.asin ?? undefined, productUrl: product.product_url, marketplace },
-        marketplace,
-      );
-      const sellerName = detail.seller_name ?? detail.buy_box_seller ?? null;
-      const brand = detail.brand ?? null;
-      if (!sellerName && !brand) continue;
-      await pool.execute(
-        `UPDATE amazon_products
-         SET seller_name = COALESCE(?, seller_name),
-             seller_url = COALESCE(?, seller_url),
-             brand = COALESCE(?, brand)
-         WHERE id = ?`,
-        [sellerName, detail.seller_url ?? null, brand, product.id],
-      );
-      updated += 1;
-    } catch {
-      // per-product errors are non-fatal
+    attempted += 1;
+    const { detail, authError } = await scrapeWithRetry(
+      { asin: product.asin ?? undefined, productUrl: product.product_url, marketplace },
+      marketplace,
+    );
+    if (authError) {
+      // Oxylabs kota/kimlik hatası — kalan SKU'ları zorlama (maliyet/kota koruması).
+      console.error('[scheduler] seller-enrichment aborted: Oxylabs auth/quota error');
+      return { updated, attempted, aborted: true };
     }
+    if (!detail) continue;
+    const sellerName = detail.seller_name ?? detail.buy_box_seller ?? null;
+    const brand = detail.brand ?? null;
+    if (!sellerName && !brand) continue;
+    await pool.execute(
+      `UPDATE amazon_products
+       SET seller_name = COALESCE(?, seller_name),
+           seller_url = COALESCE(?, seller_url),
+           brand = COALESCE(?, brand)
+       WHERE id = ?`,
+      [sellerName, detail.seller_url ?? null, brand, product.id],
+    );
+    updated += 1;
   }
-  return { updated, attempted: products.length };
+  return { updated, attempted, aborted: false };
 }
 
 async function runSellerEnrichment() {
@@ -92,7 +123,7 @@ async function runSellerEnrichment() {
           SELECT COUNT(*) FROM amazon_products p
           WHERE p.job_id = j.id
             AND p.seller_name IS NOT NULL AND p.seller_name <> ''
-        ) * 1.0 / NULLIF(j.data_points, 0) < 0.5
+        ) * 1.0 / NULLIF(j.data_points, 0) < ${SELLER_TARGET_COVERAGE}
       ORDER BY j.created_at DESC
       LIMIT 1
     `);
@@ -100,9 +131,9 @@ async function runSellerEnrichment() {
     if (!jobs.length) return;
 
     const job = jobs[0];
-    const { updated, attempted } = await processSellerEnrichmentForJob(job.id, job.marketplace, SELLER_BATCH_SIZE);
-    if (updated > 0) {
-      console.log(`[scheduler] seller-enrichment: job=${job.id.slice(0, 8)} updated=${updated}/${attempted}`);
+    const { updated, attempted, aborted } = await processSellerEnrichmentForJob(job.id, job.marketplace, SELLER_BATCH_SIZE);
+    if (updated > 0 || aborted) {
+      console.log(`[scheduler] seller-enrichment: job=${job.id.slice(0, 8)} updated=${updated}/${attempted}${aborted ? ' (ABORTED: Oxylabs auth/quota)' : ''}`);
     }
   } catch (err) {
     console.error('[scheduler] seller-enrichment error:', err instanceof Error ? err.message : String(err));
@@ -252,7 +283,7 @@ export async function runThesisReevaluationWithDeps(deps: {
       `SELECT id, keyword, marketplace, status
        FROM amazon_theses
        WHERE status = 'active'
-         AND (last_evaluated_at IS NULL OR last_evaluated_at < DATE_SUB(NOW(), INTERVAL 7 DAY))
+         AND (last_evaluated_at IS NULL OR last_evaluated_at < DATE_SUB(NOW(), INTERVAL ${env.THESIS_STALE_DAYS} DAY))
        ORDER BY COALESCE(last_evaluated_at, created_at) ASC
        LIMIT 3`,
     );

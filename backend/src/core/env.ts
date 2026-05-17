@@ -24,4 +24,16 @@ export const env = {
   SCRAPER_CALLBACK_SECRET: process.env.SCRAPER_CALLBACK_SECRET || '',
   PORT: parseEnvInt(process.env.PORT, 8186),
   API_SECRET: process.env.API_SECRET || '',
+  // OH.1 — Seller enrichment depth/batching (Micro plan maliyeti için kontrollü,
+  // tam configurable). Skorlama mantığını DEĞİŞTİRMEZ; sadece veri derinliği.
+  SELLER_BATCH_SIZE: parseEnvInt(process.env.SELLER_BATCH_SIZE, 25),
+  SELLER_POST_SCAN_BATCH: parseEnvInt(process.env.SELLER_POST_SCAN_BATCH, 25),
+  SELLER_TARGET_COVERAGE: parseEnvFloat(process.env.SELLER_TARGET_COVERAGE, 0.5),
+  SELLER_MAX_RETRIES: parseEnvInt(process.env.SELLER_MAX_RETRIES, 1),
+  THESIS_STALE_DAYS: parseEnvInt(process.env.THESIS_STALE_DAYS, 7),
 };
+
+function parseEnvFloat(value: string | undefined, fallback: number) {
+  const parsed = Number.parseFloat(value ?? '');
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
