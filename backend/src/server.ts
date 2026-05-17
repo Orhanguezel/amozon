@@ -350,7 +350,9 @@ async function getScan(jobId: string) {
   const decoratedSurface: Record<string, unknown> | null = parsedDecisionSurface ? {
     ...parsedDecisionSurface,
     priority_view: parsedDecisionSurface.priority_view ?? (parsedSkuDecisions ? buildPriorityView(parsedSkuDecisions as ReturnType<typeof buildSkuDecisions>) : undefined),
-    risk_badges: parsedDecisionSurface.risk_badges ?? deriveRiskBadges(
+    // Risk badge'leri her zaman yeniden türetilir (saf görünürlük katmanı):
+    // persist edilmiş eski kopya, güncellenmiş açıklama/eşikleri gölgelememeli.
+    risk_badges: deriveRiskBadges(
       riskScoresFromRow(risk ?? {}),
       parsedDataQuality ?? fallbackDataQuality,
       badgeStats,
@@ -421,11 +423,12 @@ async function getDecisionJson(jobId: string, options: { skuLimit?: number; skuO
   const hardeningDecisionSurface: Record<string, unknown> | null = decoratedDecisionSurface ? {
     ...decoratedDecisionSurface,
     priority_view: decoratedDecisionSurface.priority_view ?? buildPriorityView(normalizedSkus as ReturnType<typeof buildSkuDecisions>),
-    risk_badges: decoratedDecisionSurface.risk_badges ?? (scores ? deriveRiskBadges(
+    // Her zaman yeniden türetilir — persist edilmiş eski badge metni gölgelemesin.
+    risk_badges: scores ? deriveRiskBadges(
       scores as AmazonRiskReport['scores'],
       risk?.data_quality as AmazonRiskReport['data_quality'],
       decisionBadgeStats,
-    ) : []),
+    ) : [],
   } : null;
   const skuPage = buildSkuPage(
     normalizedSkus,
