@@ -1290,6 +1290,15 @@ async function getHealth() {
 
 // OH.8 — Kota/maliyet görünürlüğü: operatör scan öncesi/sonrası tüketimi görür.
 // Salt-okuma; skor/karar mantığına dokunmaz.
+// OH.8b — Cache hit/miss sayacı (process-lifetime, in-memory).
+// `since` ile birlikte dönülür; restart sonrası sıfırlanır (operatör için yeterli görünürlük).
+const cacheStats = {
+  since: new Date().toISOString(),
+  hits: 0,
+  misses: 0,
+  forced: 0,
+};
+
 async function getQuota() {
   const keepaUsage = await getKeepaUsage();
   const today = keepaUsage.today as Record<string, unknown> | null;
@@ -1338,7 +1347,15 @@ async function getQuota() {
       ttl_minutes: env.SCAN_CACHE_TTL_MIN,
       scans_last_24h: Number(cache.total_24h || 0),
       done_last_24h: Number(cache.done_24h || 0),
-      note: 'Aynı keyword/marketplace için TTL içinde tamamlanmış tarama varsa yeniden taramadan önce seçim sunulur (kota koruması).',
+      // OH.8b — cache hit/miss görünürlüğü (process-lifetime)
+      since: cacheStats.since,
+      hits: cacheStats.hits,
+      misses: cacheStats.misses,
+      forced_rescans: cacheStats.forced,
+      hit_rate: (cacheStats.hits + cacheStats.misses + cacheStats.forced) > 0
+        ? Number((cacheStats.hits / (cacheStats.hits + cacheStats.misses + cacheStats.forced)).toFixed(2))
+        : null,
+      note: 'Aynı keyword/marketplace için TTL içinde tamamlanmış tarama varsa yeniden taramadan önce seçim sunulur (kota koruması). hit/miss sayaçları işlem başlangıcından itibarendir.',
     },
   };
 }
@@ -1606,6 +1623,7 @@ async function handleRequest(request: Request): Promise<Response> {
     // scan varsa yeniden tarama yapma; operatöre "cached kullan / yeniden tara"
     // seçeneği sun. force:true ile bypass. Veri-akışı katmanı; skor değişmez.
     const force = Boolean(body.force);
+    if (force) cacheStats.forced += 1;
     if (!force) {
       const [cacheRows] = await pool.execute(
         `SELECT id, created_at,
@@ -1619,6 +1637,7 @@ async function handleRequest(request: Request): Promise<Response> {
       );
       const cached = (cacheRows as Array<{ id: string; created_at: unknown; age_min: number | string }>)[0];
       if (cached) {
+        cacheStats.hits += 1;
         const ageMin = Number(cached.age_min) || 0;
         return json({
           cached_available: true,
@@ -1635,6 +1654,7 @@ async function handleRequest(request: Request): Promise<Response> {
       }
     }
 
+    if (!force) cacheStats.misses += 1;
     const job = await createJob(keyword, marketplace);
     runInBackground(job.id);
     return json({ jobId: job.id, keyword, seed_asin: seedAsin, seed_asin_title: seedAsinTitle, cached_available: false });

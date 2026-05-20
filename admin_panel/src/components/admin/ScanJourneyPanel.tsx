@@ -54,7 +54,7 @@ type ScanStartResponse = {
 type QuotaResponse = {
   keepa: { configured: boolean; budget_total: number; budget_remaining: number; tokens_used_today: number };
   oxylabs: { configured: boolean; average_requests_per_scan: number; estimated_requests_last_24h: number };
-  cache: { ttl_minutes: number };
+  cache: { ttl_minutes: number; hits?: number; misses?: number; forced_rescans?: number; hit_rate?: number | null };
 };
 
 const MARKETPLACE_OPTIONS = ['com', 'co.uk', 'de', 'fr', 'es', 'it', 'com.tr'];
@@ -235,7 +235,16 @@ export function ScanJourneyPanel() {
               <div className="quota-card" title="Scan öncesi/sonrası kota ve maliyet görünürlüğü">
                 <span><b>Keepa:</b> {quota.keepa.budget_remaining}/{quota.keepa.budget_total} kalan ({quota.keepa.tokens_used_today} kullanıldı)</span>
                 <span><b>Oxylabs:</b> ~{quota.oxylabs.average_requests_per_scan || '–'} istek/scan · 24s: {quota.oxylabs.estimated_requests_last_24h}</span>
-                <span><b>Cache:</b> {quota.cache.ttl_minutes} dk yeniden-kullanım</span>
+                <span>
+                  <b>Cache:</b> {quota.cache.ttl_minutes} dk TTL
+                  {quota.cache.hits !== undefined && (
+                    <> · hit: {quota.cache.hits} / miss: {quota.cache.misses ?? 0}
+                    {quota.cache.forced_rescans ? ` / force: ${quota.cache.forced_rescans}` : ''}
+                    {quota.cache.hit_rate !== null && quota.cache.hit_rate !== undefined
+                      ? ` (${Math.round((quota.cache.hit_rate ?? 0) * 100)}%)`
+                      : ''}</>
+                  )}
+                </span>
               </div>
             )}
             {cachedPrompt && (
