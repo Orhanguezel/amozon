@@ -20,6 +20,13 @@ export async function POST(request: Request) {
 
   return backendJson('/api/scans', {
     method: 'POST',
-    body: JSON.stringify({ keyword, asin, marketplace, auto_add: Boolean(body.auto_add) }),
+    body: JSON.stringify({
+      keyword,
+      asin,
+      marketplace,
+      auto_add: Boolean(body.auto_add),
+      // OH.7 — force bayrağını backend'e ilet ki cache reuse bypass çalışsın
+      force: Boolean(body.force),
+    }),
   });
 }
