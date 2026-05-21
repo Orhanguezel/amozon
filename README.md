@@ -10,14 +10,14 @@ Amazon pazarlarında kategori bazlı **explainable decision engine**. Operatör 
 
 ## Faz Özeti
 
-| Faz | İçerik | Durum |
-|-----|--------|-------|
-| Milestone 1 | 5 boyut scorer + scan job + admin panel iskelet | ✅ |
-| Phase 2 | IQR outlier · Brand field · Decision tiers · SKU narrative · Keepa time-series | ✅ |
-| Phase 3 | Intelligence Layer — Keepa pre-score sync · Cross-dim LLM reasoning · Brand verification · Lineage | ✅ |
-| Phase 4 | V1 Stabilizasyon — Single Journey · Confidence Honesty · Thesis Memory · Auto-Enrichment · Reliability | ✅ |
-| Phase 4.5–4.7 | Operator Clarity & Operational Hardening — risk badge'leri, cache reuse, kota görünürlüğü | ✅ |
-| Phase 5 (planlı) | Threat Intelligence — seller coverage hedef, segmentation, BuyBox dominance | — |
+| Faz               | İçerik                                                                                                    | Durum |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- | ----- |
+| Milestone 1       | 5 boyut scorer + scan job + admin panel iskelet                                                             | ✅    |
+| Phase 2           | IQR outlier · Brand field · Decision tiers · SKU narrative · Keepa time-series                          | ✅    |
+| Phase 3           | Intelligence Layer — Keepa pre-score sync · Cross-dim LLM reasoning · Brand verification · Lineage      | ✅    |
+| Phase 4           | V1 Stabilizasyon — Single Journey · Confidence Honesty · Thesis Memory · Auto-Enrichment · Reliability | ✅    |
+| Phase 4.5–4.7    | Operator Clarity & Operational Hardening — risk badge'leri, cache reuse, kota görünürlüğü            | ✅    |
+| Phase 5 (planlı) | Threat Intelligence — seller coverage hedef, segmentation, BuyBox dominance                                | —    |
 
 ## Öne Çıkan Özellikler
 
@@ -64,5 +64,4 @@ Kurulum, deployment adımları, cron/background job listesi ve sahiplik devri:
 
 ## Notlar
 
-- DB değişikliği yaparken **ALTER kullanmayın** — `backend/src/db/seed/sql/0XX_*.sql` dosyasını güncelleyip şemayı yeniden uygulayın.
 - Dış servis abonelikleri (Oxylabs, Keepa, Groq/OpenAI) sistem sahibinin kendi hesabında olmalıdır.
