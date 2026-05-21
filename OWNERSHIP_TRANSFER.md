@@ -84,8 +84,6 @@ pm2 save
 **Portlar:** Backend `8186`, Admin Panel `3196` (Next basePath `/amozon`).
 **Nginx:** `/amozon` → panel (3196), panel kendi API route'ları üzerinden backend'e proxy yapar. Statik varlıklar `/amozon/_next/static/` auth'suz cache'lenir.
 
-Detaylı mimari: `docs/architecture.md` · API referansı: `docs/api-reference.md` · Operatör rehberi: `docs/operator-guide.md`.
-
 ---
 
 ## 5. Cron & Background Job Listesi

@@ -8,14 +8,6 @@ Amazon pazarlarında kategori bazlı **explainable decision engine**. Operatör 
 
 - `backend/`: Oxylabs/Keepa/LLM kullanan Amazon scraping ve scoring motoru (Bun + TypeScript)
 - `admin_panel/`: Operatör paneli — Single Journey, Tezler, Karar Yüzeyi, Lineage (Next.js 16)
-- `frontend/`: İleride public/kullanıcı arayüzü için ayrılmış alan
-- `docs/`: Referans dokümanlar
-  - [architecture.md](./docs/architecture.md) — sistem mimarisi
-  - [operator-guide.md](./docs/operator-guide.md) — operatör rehberi
-  - [api-reference.md](./docs/api-reference.md) — backend endpoint referansı
-  - [sku-signal-model.md](./docs/sku-signal-model.md) — SKU bazlı sinyal modeli (Milestone 1)
-  - [basvuru-paketi.md](./docs/basvuru-paketi.md) — proje teslim paketi
-  - `archive/` — geçmiş faz ceklist'leri
 
 ## Aktif Çalışma
 
@@ -24,13 +16,13 @@ Amazon pazarlarında kategori bazlı **explainable decision engine**. Operatör 
 
 ## Faz Özeti
 
-| Faz | İçerik | Durum |
-|---|---|---|
-| Milestone 1 | 5 boyut scorer + scan job + admin panel iskelet | ✅ |
-| Phase 2 | IQR outlier · Brand field · Decision tiers · SKU narrative · Seller speedup · Keepa time-series | ✅ |
-| Phase 3 | Intelligence Layer — Keepa pre-score sync · Cross-dim LLM reasoning · Brand verification · Keepa lineage · Inline scan | ✅ |
-| **Phase 4** | **V1 Stabilizasyon — Single Journey · Confidence Honesty · Thesis Memory · Auto-Enrichment · Reliability** | ✅ Local + deploy tamamlandı |
-| Phase 5 (planlı) | Threat Intelligence — Seller coverage hedef, segmentation, BuyBox dominance, stratejik reasoning | — |
+| Faz               | İçerik                                                                                                                    | Durum                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Milestone 1       | 5 boyut scorer + scan job + admin panel iskelet                                                                             | ✅                            |
+| Phase 2           | IQR outlier · Brand field · Decision tiers · SKU narrative · Seller speedup · Keepa time-series                        | ✅                            |
+| Phase 3           | Intelligence Layer — Keepa pre-score sync · Cross-dim LLM reasoning · Brand verification · Keepa lineage · Inline scan | ✅                            |
+| **Phase 4** | **V1 Stabilizasyon — Single Journey · Confidence Honesty · Thesis Memory · Auto-Enrichment · Reliability**       | ✅ Local + deploy tamamlandı |
+| Phase 5 (planlı) | Threat Intelligence — Seller coverage hedef, segmentation, BuyBox dominance, stratejik reasoning                           | —                            |
 
 ## Phase 4 Yeni Özellikler
 
@@ -145,9 +137,7 @@ ssh vps-paspas 'pm2 restart amozon-api amozon-panel --update-env'
 
 - Komut satırındaki `<...>` ifadelerini aynen yazmayın; gerçek değer verin.
 - DB değişikliği yaparken **ALTER kullanmayın** — `backend/src/db/seed/sql/0XX_*.sql` dosyasını güncelleyip seed'i tetikleyin (CLAUDE.md kuralı).
-- Detaylı operatör akışı: [docs/operator-guide.md](./docs/operator-guide.md)
-- Sistem mimarisi: [docs/architecture.md](./docs/architecture.md)
-- API referansı: [docs/api-reference.md](./docs/api-reference.md)
+- Devir / kurulum: [OWNERSHIP_TRANSFER.md](./OWNERSHIP_TRANSFER.md)
 
 ```bash
 bun run scan -- --job-id 024fdf57-53ac-4d4d-be0f-cc77d24830a3
