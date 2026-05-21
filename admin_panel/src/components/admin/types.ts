@@ -275,6 +275,19 @@ export function confidenceLabel(confidence?: string | null) {
 export function errorLabel(error?: string | null) {
   const value = String(error || '').trim();
   if (!value || value === '-') return '-';
+  // OH.2b — ASIN modu üç farklı hata sınıfını net Türkçe ile ayır
+  if (value === 'invalid_asin_format' || value.includes('INVALID_ASIN_FORMAT')) {
+    return 'Geçersiz ASIN formatı. Doğru biçim: 10 karakterli (B0XXXXXXXX) veya 10 haneli ISBN.';
+  }
+  if (value === 'asin_not_found' || value.includes('ASIN_TITLE_NOT_FOUND')) {
+    return 'Bu ASIN için Amazon\'da ürün bilgisi bulunamadı (silinmiş, bölge kısıtlı veya pazaryeri yanlış olabilir).';
+  }
+  if (value === 'data_source_unavailable') {
+    return 'Veri kaynağı (Oxylabs) şu an erişilemez; lütfen birazdan tekrar deneyin.';
+  }
+  if (value === 'upstream_provider_error') {
+    return 'Üst veri sağlayıcıdan beklenmedik yanıt geldi; lütfen birazdan tekrar deneyin.';
+  }
   if (value.includes('OXYLABS_AMAZON_SEARCH_FAILED_429') || value.includes('429')) {
     return 'Oxylabs geçici limit hatası (429). Biraz bekleyip yeniden deneyin.';
   }

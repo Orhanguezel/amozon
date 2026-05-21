@@ -1587,7 +1587,18 @@ async function handleRequest(request: Request): Promise<Response> {
     // ASIN modu — ürün başlığından keyword türet, normal scan akışı devam eder
     if (rawAsin && !keyword) {
       const { isAsin, resolveAsinToKeyword } = await import('@/amazon/asin-resolver');
-      if (!isAsin(rawAsin)) return json({ error: 'invalid_asin_format' }, { status: 400 });
+      // OH.2b — Üç farklı hata sınıfı net ayrılır: geçersiz format, ürün bulunamadı,
+      // veri kaynağı erişilemez, upstream sağlayıcı hatası.
+      if (!isAsin(rawAsin)) {
+        return json(
+          {
+            error: 'invalid_asin_format',
+            detail: 'INVALID_ASIN_FORMAT',
+            message: 'Geçersiz ASIN formatı. Doğru biçim: 10 karakterli (örn. B0XXXXXXXX) veya 10 haneli ISBN (örn. 0306406152).',
+          },
+          { status: 400 },
+        );
+      }
       try {
         const resolved = await resolveAsinToKeyword(rawAsin, marketplace);
         keyword = resolved.keyword;
@@ -1595,17 +1606,36 @@ async function handleRequest(request: Request): Promise<Response> {
         seedAsinTitle = resolved.title;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'ASIN_RESOLVE_FAILED';
-        // OH.2 — Oxylabs erişim/kota hatasını geçersiz ASIN'den ayır.
-        const dataSourceDown = /_(401|403|408|429|5\d\d)$|NOT_CONFIGURED|TIMEOUT|ECONNRESET|ECONNREFUSED/i.test(msg);
-        if (dataSourceDown) {
+        // 1) Veri kaynağı erişilemez (auth/kota/timeout/5xx)
+        if (/_(401|403|408|429|5\d\d)$|NOT_CONFIGURED|TIMEOUT|ECONNRESET|ECONNREFUSED/i.test(msg)) {
           return json(
-            { error: 'data_source_unavailable', detail: msg, message: 'Veri kaynağı (Oxylabs) şu an erişilemez; lütfen biraz sonra tekrar deneyin.' },
+            {
+              error: 'data_source_unavailable',
+              detail: msg,
+              message: 'Veri kaynağı (Oxylabs) şu an erişilemez; lütfen birazdan tekrar deneyin.',
+            },
             { status: 503 },
           );
         }
+        // 2) ASIN format doğru ama ürün bulunamadı (silinmiş / bölge kısıtlı / parse boş)
+        if (msg === 'ASIN_TITLE_NOT_FOUND') {
+          return json(
+            {
+              error: 'asin_not_found',
+              detail: msg,
+              message: 'Bu ASIN için Amazon\'da ürün bilgisi bulunamadı — ürün silinmiş, bölgede satışta olmayabilir veya pazaryeri yanlış seçilmiş olabilir.',
+            },
+            { status: 404 },
+          );
+        }
+        // 3) Beklenmedik upstream yanıt (parse, 4xx-genel vb.)
         return json(
-          { error: 'asin_resolve_failed', detail: msg, message: 'ASIN çözümlenemedi; ASIN geçerli ve ürün erişilebilir olmalı.' },
-          { status: 400 },
+          {
+            error: 'upstream_provider_error',
+            detail: msg,
+            message: 'Üst veri sağlayıcıdan beklenmedik bir yanıt alındı; lütfen birazdan tekrar deneyin.',
+          },
+          { status: 502 },
         );
       }
     }
