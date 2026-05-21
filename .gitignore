@@ -3,3 +3,5 @@ dist
 .next
 .env
 *.tsbuildinfo
+docs/
+transfer/
