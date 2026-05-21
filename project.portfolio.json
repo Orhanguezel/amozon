@@ -1,39 +1,43 @@
 {
   "title": "Amozon",
   "slug": "amozon",
-  "summary": "Amazon ürün scraping, Keepa zenginleştirme ve kategori bazlı risk scoring motoru.",
-  "description": "Oxylabs ile Amazon arama sonuçlarından ürün, fiyat, satıcı ve yorum sinyalleri toplayan; veriyi MySQL'e yazıp beş boyutlu kategori risk raporu üreten bağımsız TypeScript/Bun projesi.",
+  "summary": "Amazon kategorilerinde 5 boyutlu risk skoru + LLM reasoning ile açıklanabilir AL/TAKIP_ET/UZAK_DUR karar motoru.",
+  "description": "Oxylabs ile Amazon arama ve ürün verisini toplayan, Keepa fiyat geçmişiyle zenginleştiren, beş boyutta risk skoru ve LLM cross-dimension reasoning üreten explainable decision engine. Operatör paneli (Next.js) Single Journey tarama akışı, tez izleme, karar yüzeyi ve lineage sunar. Bağımsız TypeScript/Bun + MySQL projesi.",
   "category": "DATA SCRAPING",
   "services": [
     "Backend Development",
     "Data Scraping",
     "Scoring Engine",
-    "Automation"
+    "LLM Integration",
+    "Admin Panel"
   ],
   "techs": [
     "TypeScript",
     "Bun",
+    "Next.js",
+    "React",
     "MySQL",
-    "Drizzle ORM",
     "Oxylabs",
-    "Keepa"
+    "Keepa",
+    "Groq LLM"
   ],
   "features": [
-    "Amazon ürün scraping",
-    "ASIN bazlı tekilleştirme",
-    "Kategori istatistikleri",
-    "Beş boyutlu risk scoring",
-    "Opsiyonel Keepa queue ve snapshot akışı",
-    "Job tabanlı CLI runner",
-    "Mock DB ile scoring ve job testleri"
+    "Amazon ürün scraping ve ASIN tekilleştirme",
+    "Beş boyutlu kategori risk scoring",
+    "LLM cross-dimension reasoning",
+    "Confidence honesty ve coverage gate",
+    "Thesis memory — karar izleme ve invalidation",
+    "Single Journey tarama akışı (operatör paneli)",
+    "Keepa fiyat geçmişi zenginleştirme",
+    "Scan cache reuse ve kota görünürlüğü"
   ],
   "featured": false,
   "displayOrder": 99,
   "clientName": "Amozon",
-  "status": "active",
+  "status": "completed",
   "startDate": "2026-05-07",
-  "completeDate": null,
-  "completionTimeLabel": "Aktif geliştirme",
+  "completeDate": "2026-05-21",
+  "completionTimeLabel": "Tamamlandı (V1 — Bedrock)",
   "repoUrl": null,
   "websiteUrl": null,
   "featuredImage": null,
