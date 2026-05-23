@@ -4,15 +4,19 @@ V1 – Bedrock teknik kabul: 2026-05-21. Bu doküman sistemin yeni sahibe devri 
 
 ---
 
-## 1. Repository Transferi
+## 1. Repository Teslimi
 
-GitHub repo: `Orhanguezel/amozon` (branch: `main`).
+Teslim **zip paketi** ile yapılır — iç doküman/yazışma geçmişi içermeyen, tek-commit'lik temiz bir git deposu olarak hazırlanmıştır. Açtıktan sonra:
 
-Devir seçenekleri (repo sahibi tarafından yapılır — hesap seviyesi işlem):
-- **Tam sahiplik transferi:** GitHub → repo → Settings → "Transfer ownership" → alıcı kullanıcı/organizasyon adı.
-- **veya Admin daveti:** Settings → Collaborators → alıcıyı `Admin` rolüyle ekle.
+```bash
+unzip amozon-v1-bedrock-transfer.zip
+cd amozon/
+git log --oneline   # tek commit: "V1 — Bedrock"
+git remote add origin <kendi GitHub repo URL'iniz>
+git push -u origin main
+```
 
-> Not: Repo transferi GitHub hesabı üzerinden yapılır; kod tarafında ek işlem yoktur. Transfer sonrası `main` branch doğrudan güncel ve deploy edilebilir durumdadır.
+Alternatif olarak mevcut GitHub repository'sinin **tam sahiplik transferi** ya da **Admin daveti** ile devri de yapılabilir; tercih ederseniz GitHub kullanıcı adınızı/organizasyon adınızı paylaşmanız yeterli.
 
 ---
 
